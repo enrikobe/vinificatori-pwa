@@ -12,42 +12,6 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Vinificatori">
     
-    <!-- Firebase SDK -->
-    <script type="module">
-        // Configurazione Firebase - SOSTITUISCI CON I TUOI DATI
-        const firebaseConfig = {
-            apiKey: "your-api-key-here",
-            authDomain: "your-project.firebaseapp.com",
-            projectId: "your-project-id",
-            storageBucket: "your-project.appspot.com",
-            messagingSenderId: "123456789",
-            appId: "your-app-id"
-        };
-        
-        // Carica Firebase solo se configurato
-        if (firebaseConfig.apiKey !== "your-api-key-here") {
-            import('https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js').then(({ initializeApp }) => {
-                window.firebaseApp = initializeApp(firebaseConfig);
-                
-                // Carica Firestore
-                import('https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js').then((firestoreModule) => {
-                    window.firestoreModule = firestoreModule;
-                    window.db = firestoreModule.getFirestore(window.firebaseApp);
-                    console.log('Firebase inizializzato');
-                    
-                    // Notifica all'app che Firebase è pronto
-                    if (window.app) {
-                        window.app.onFirebaseReady();
-                    }
-                    window.firebaseReady = true;
-                });
-            });
-        } else {
-            console.log('Firebase non configurato - modalità offline');
-            window.firebaseReady = false;
-        }
-    </script>
-    
     <!-- Manifest dinamico -->
     <link rel="manifest" href="#" id="manifest-placeholder">
     
@@ -138,7 +102,7 @@
             padding: 8px 16px;
             border-radius: 5px;
             cursor: pointer;
-            margin-top: 10px;
+            margin: 5px;
         }
 
         /* Sync Status Enhanced */
@@ -715,6 +679,11 @@
             margin-right: 10px;
             margin-bottom: 10px;
             font-weight: 600;
+            display: none;
+        }
+
+        .firebase-sync-btn.show {
+            display: inline-block;
         }
 
         .file-input {
@@ -938,7 +907,7 @@
 
         <!-- Firebase Setup Banner -->
         <div class="firebase-banner" id="firebaseBanner">
-            <h3>🔥 Configurazione Firebase Richiesta</h3>
+            <h3>Configurazione Firebase Richiesta</h3>
             <p>Per attivare la sincronizzazione automatica tra dispositivi, configura Firebase.</p>
             <button onclick="showFirebaseSetup()">Configura Ora</button>
             <button onclick="hideFirebaseBanner()">Usa Offline</button>
@@ -996,7 +965,7 @@
             <div class="sync-section">
                 <h3 style="margin-bottom: 15px;">🔄 Sincronizzazione Dati</h3>
                 <div style="margin-bottom: 15px;">
-                    <button class="firebase-sync-btn" onclick="forceFirebaseSync()" id="firebaseSyncBtn" style="display:none;">🔥 Sync Cloud</button>
+                    <button class="firebase-sync-btn" onclick="forceFirebaseSync()" id="firebaseSyncBtn">🔥 Sync Cloud</button>
                     <button class="sync-btn" onclick="syncAllData()">🔄 Sync Locale</button>
                 </div>
                 <div>
@@ -1026,6 +995,11 @@
     </div>
 
     <script>
+        // Firebase Configuration (to be replaced with real config)
+        window.firebaseReady = false;
+        window.firebaseApp = null;
+        window.db = null;
+
         // Enhanced PWA App Class with Firebase
         class VinificatoriFirebasePWA {
             constructor() {
@@ -1069,14 +1043,7 @@
                 this.startAutoSave();
                 this.updateSyncStatus();
                 this.updateUserDisplay();
-                
-                // Check Firebase configuration
                 this.checkFirebaseConfig();
-                
-                window.addEventListener('error', (e) => {
-                    console.error('App Error:', e.error);
-                    this.showNotification('Errore applicazione', 'error');
-                });
             }
 
             generateUserId() {
@@ -1089,19 +1056,16 @@
             }
 
             checkFirebaseConfig() {
-                if (window.firebaseReady === false || !window.firebaseReady) {
-                    document.getElementById('firebaseBanner').classList.add('show');
-                    this.updateSyncStatus();
-                } else if (window.firebaseReady === true) {
-                    this.onFirebaseReady();
-                }
+                // Show Firebase banner if not configured
+                document.getElementById('firebaseBanner').classList.add('show');
+                this.updateSyncStatus();
             }
 
             onFirebaseReady() {
                 console.log('Firebase pronto per l\'uso');
                 this.firebaseReady = true;
                 document.getElementById('firebaseBanner').classList.remove('show');
-                document.getElementById('firebaseSyncBtn').style.display = 'inline-block';
+                document.getElementById('firebaseSyncBtn').classList.add('show');
                 this.updateSyncStatus();
                 this.startFirebaseSync();
             }
@@ -1131,93 +1095,12 @@
             }
 
             async startFirebaseSync() {
-                if (!this.firebaseReady || !window.db) return;
-                
-                try {
-                    // Setup real-time listener
-                    const { doc, onSnapshot } = window.firestoreModule;
-                    const userDoc = doc(window.db, 'vinificatori_data', this.userId);
-                    
-                    this.realTimeListener = onSnapshot(userDoc, (snapshot) => {
-                        if (snapshot.exists()) {
-                            const cloudData = snapshot.data();
-                            this.mergeCloudData(cloudData);
-                            this.lastSync = new Date();
-                            this.updateSyncStatus();
-                            console.log('Dati sincronizzati dal cloud');
-                        }
-                    }, (error) => {
-                        console.error('Errore listener Firebase:', error);
-                    });
-                    
-                    // Initial sync to cloud
-                    await this.pushToFirebase();
-                } catch (error) {
-                    console.error('Errore setup Firebase sync:', error);
-                }
-            }
-
-            mergeCloudData(cloudData) {
-                if (cloudData.timestamp > (localStorage.getItem('lastLocalUpdate') || 0)) {
-                    // Cloud data is newer
-                    if (cloudData.priorities) this.priorities = cloudData.priorities;
-                    if (cloudData.activities) this.activities = cloudData.activities;
-                    if (cloudData.tasks) this.tasks = cloudData.tasks;
-                    
-                    this.updateHomeIndicators();
-                    this.updateTodoUI();
-                    if (this.currentVinificatorePage !== 'home') {
-                        this.updateVinificatorePage(this.currentVinificatorePage);
-                    }
-                }
-            }
-
-            async pushToFirebase() {
-                if (!this.firebaseReady || !window.db) return;
-                
-                this.syncInProgress = true;
-                this.updateSyncStatus();
-                
-                try {
-                    const { doc, setDoc } = window.firestoreModule;
-                    const userDoc = doc(window.db, 'vinificatori_data', this.userId);
-                    
-                    const dataToSync = {
-                        priorities: this.priorities,
-                        activities: this.activities,
-                        tasks: this.tasks,
-                        timestamp: Date.now(),
-                        lastDevice: navigator.userAgent.substr(0, 50),
-                        version: '2.0'
-                    };
-                    
-                    await setDoc(userDoc, dataToSync, { merge: true });
-                    
-                    localStorage.setItem('lastLocalUpdate', dataToSync.timestamp.toString());
-                    this.lastSync = new Date();
-                    this.showNotification('Dati sincronizzati su cloud', 'success');
-                    
-                } catch (error) {
-                    console.error('Errore push Firebase:', error);
-                    this.showNotification('Errore sincronizzazione cloud', 'error');
-                } finally {
-                    this.syncInProgress = false;
-                    this.updateSyncStatus();
-                }
-            }
-
-            async forceFirebaseSync() {
-                if (!this.firebaseReady) {
-                    this.showNotification('Firebase non configurato', 'warning');
-                    return;
-                }
-                
-                await this.pushToFirebase();
+                // Firebase sync would be implemented here
+                console.log('Firebase sync not implemented yet');
             }
 
             loadAllData() {
                 try {
-                    // Load local data
                     const savedPriorities = localStorage.getItem('vinificatore_priorities');
                     const savedActivities = localStorage.getItem('vinificatore_activities');
                     const savedTasks = localStorage.getItem('todoTasks');
@@ -1256,25 +1139,10 @@
                     localStorage.setItem('vinificatore_activities', JSON.stringify(this.activities));
                     localStorage.setItem('todoTasks', JSON.stringify(this.tasks));
                     localStorage.setItem('lastLocalUpdate', Date.now().toString());
-                    
-                    // Auto-sync to Firebase if available
-                    if (this.firebaseReady && !this.syncInProgress) {
-                        this.debouncedFirebaseSync();
-                    }
                 } catch (e) {
                     console.error('Error saving data:', e);
                     this.showNotification('Errore salvataggio', 'error');
                 }
-            }
-
-            debouncedFirebaseSync() {
-                if (this.firebaseSyncTimer) {
-                    clearTimeout(this.firebaseSyncTimer);
-                }
-                
-                this.firebaseSyncTimer = setTimeout(() => {
-                    this.pushToFirebase();
-                }, 2000); // 2 second delay for Firebase sync
             }
 
             startAutoSave() {
@@ -1305,11 +1173,9 @@
             }
 
             setupEventListeners() {
-                // Keep all original event listeners from the previous version
-                // ... (same as before)
-                
                 const homeGrid = document.getElementById('homeGrid');
                 
+                // Mobile touch events
                 homeGrid.addEventListener('touchstart', (e) => {
                     const button = e.target.closest('.vinificatore-btn');
                     if (!button) return;
@@ -1338,6 +1204,7 @@
 
                 homeGrid.addEventListener('touchcancel', () => this.cancelLongPress());
 
+                // Desktop mouse events
                 homeGrid.addEventListener('mousedown', (e) => {
                     const button = e.target.closest('.vinificatore-btn');
                     if (button?.dataset.vinificatore) {
@@ -1355,12 +1222,14 @@
                     }
                 });
 
+                // Todo events
                 document.getElementById('taskInput').addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') {
                         this.addTask();
                     }
                 });
 
+                // Popup events
                 document.getElementById('popupCancel').addEventListener('click', () => this.closePopup());
                 document.getElementById('popupConfirm').addEventListener('click', () => this.confirmPopup());
                 
@@ -1379,21 +1248,6 @@
                 });
             }
 
-            // Firebase Configuration Methods
-            showFirebaseSetup() {
-                this.currentPopupType = 'firebase-config';
-                this.showPopup('Configurazione Firebase', '', 'firebase-config');
-            }
-
-            hideFirebaseBanner() {
-                document.getElementById('firebaseBanner').classList.remove('show');
-            }
-
-            // All other methods remain the same as the previous version
-            // ... (keeping the same functionality for vinificatori management, todo, etc.)
-            
-            // Simplified versions of key methods for space:
-            
             handleHomeButtonClick(button) {
                 if (button.id === 'resetBtn') {
                     this.resetAll();
@@ -1491,6 +1345,222 @@
                 return false;
             }
 
+            openVinificatorePage(vinificatore) {
+                document.getElementById('homePage').style.display = 'none';
+                
+                let page = document.getElementById(`page-${vinificatore}`);
+                if (!page) {
+                    page = this.createVinificatorePage(vinificatore);
+                    document.getElementById('vinificatoriPage').appendChild(page);
+                }
+                
+                page.style.display = 'flex';
+                page.classList.add('active', 'fade-in');
+                
+                this.currentVinificatorePage = vinificatore;
+                this.updateVinificatorePage(vinificatore);
+            }
+
+            createVinificatorePage(vinificatore) {
+                const page = document.createElement('div');
+                page.id = `page-${vinificatore}`;
+                page.className = 'vinificatore-page';
+                
+                page.innerHTML = `
+                    <div class="vinificatore-header">${vinificatore}</div>
+                    <button class="back-btn" onclick="app.goHome()">← Indietro</button>
+                    <div class="sectors-container">
+                        ${this.sectors.map(sector => `
+                            <div class="sector" data-sector="${sector.key}">
+                                <div class="sector-time-badge" data-time="${sector.key}"></div>
+                                <div class="sector-header" onclick="app.showTimePopup('${vinificatore}', '${sector.key}')">
+                                    <span class="sector-emoji">${sector.emoji}</span>
+                                    <span class="sector-name">${sector.name}</span>
+                                </div>
+                                <div class="actions-row">
+                                    ${this.actions.map(action => `
+                                        <button class="action-btn" 
+                                                data-vinificatore="${vinificatore}"
+                                                data-sector="${sector.key}" 
+                                                data-action="${action}"
+                                                onclick="app.toggleAction('${vinificatore}', '${sector.key}', '${action}', this)">
+                                            <span class="action-text">${action}</span>
+                                        </button>
+                                    `).join('')}
+                                </div>
+                                <div class="measurements-row">
+                                    <div class="measurement-input">
+                                        <div class="measurement-label">Temperatura (°C)</div>
+                                        <input type="number" class="measurement-field" 
+                                               placeholder="°C"
+                                               data-vinificatore="${vinificatore}"
+                                               data-sector="${sector.key}"
+                                               data-measurement="temperature"
+                                               min="0" max="50" step="0.1"
+                                               onchange="app.saveMeasurement('${vinificatore}', '${sector.key}', 'temperature', this.value)">
+                                    </div>
+                                    <div class="measurement-input">
+                                        <div class="measurement-label">Densità (g/L)</div>
+                                        <input type="number" class="measurement-field" 
+                                               placeholder="g/L"
+                                               data-vinificatore="${vinificatore}"
+                                               data-sector="${sector.key}"
+                                               data-measurement="density"
+                                               min="0" max="2000" step="0.1"
+                                               onchange="app.saveMeasurement('${vinificatore}', '${sector.key}', 'density', this.value)">
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                
+                return page;
+            }
+
+            goHome() {
+                document.querySelectorAll('.vinificatore-page').forEach(page => {
+                    page.style.display = 'none';
+                    page.classList.remove('active');
+                });
+                
+                document.getElementById('homePage').style.display = 'block';
+                this.currentVinificatorePage = 'home';
+                this.updateHomeIndicators();
+            }
+
+            showTimePopup(vinificatore, sector) {
+                this.currentPopupType = 'time';
+                this.pendingAction = { vinificatore, sector };
+                
+                const measurements = this.getSectorMeasurements(vinificatore, sector);
+                const sectorName = this.sectors.find(s => s.key === sector)?.name || sector;
+                
+                this.showPopup(`Orario ${sectorName}`, measurements.time, 'time');
+            }
+
+            toggleAction(vinificatore, sector, action, buttonEl) {
+                if (!this.activities[vinificatore]) this.activities[vinificatore] = {};
+                if (!this.activities[vinificatore][sector]) this.activities[vinificatore][sector] = {};
+                
+                const currentData = this.activities[vinificatore][sector][action];
+                const isCurrentlyActive = currentData ? currentData.active : false;
+                
+                if (isCurrentlyActive) {
+                    delete this.activities[vinificatore][sector][action];
+                } else {
+                    this.activities[vinificatore][sector][action] = {
+                        active: true,
+                        priority: this.getNextActionPriority(vinificatore, sector),
+                        timestamp: new Date().toISOString()
+                    };
+                }
+                
+                buttonEl.classList.add('pulse');
+                setTimeout(() => buttonEl.classList.remove('pulse'), 300);
+                
+                this.debouncedSave();
+                this.updateVinificatorePage(vinificatore);
+                this.updateHomeIndicators();
+            }
+
+            getNextActionPriority(vinificatore, sector) {
+                if (!this.activities[vinificatore] || !this.activities[vinificatore][sector]) {
+                    return 1;
+                }
+                
+                const sectorActions = this.activities[vinificatore][sector];
+                const usedPriorities = Object.entries(sectorActions)
+                    .filter(([action, data]) => action !== 'measurements' && data?.active && data.priority)
+                    .map(([action, data]) => data.priority);
+                
+                let nextPriority = 1;
+                while (usedPriorities.includes(nextPriority)) {
+                    nextPriority++;
+                }
+                
+                return nextPriority;
+            }
+
+            updateVinificatorePage(vinificatore) {
+                const page = document.getElementById(`page-${vinificatore}`);
+                if (!page) return;
+                
+                this.sectors.forEach(sector => {
+                    const sectorEl = page.querySelector(`[data-sector="${sector.key}"]`);
+                    if (!sectorEl) return;
+                    
+                    const actionButtons = sectorEl.querySelectorAll('.action-btn');
+                    const tempInput = sectorEl.querySelector(`[data-measurement="temperature"]`);
+                    const densityInput = sectorEl.querySelector(`[data-measurement="density"]`);
+                    const timeBadge = sectorEl.querySelector(`[data-time="${sector.key}"]`);
+                    
+                    // Update measurements
+                    const measurements = this.getSectorMeasurements(vinificatore, sector.key);
+                    if (tempInput) tempInput.value = measurements.temperature || '';
+                    if (densityInput) densityInput.value = measurements.density || '';
+                    
+                    if (timeBadge) {
+                        if (measurements.time) {
+                            timeBadge.textContent = measurements.time;
+                            timeBadge.classList.add('visible');
+                        } else {
+                            timeBadge.textContent = '';
+                            timeBadge.classList.remove('visible');
+                        }
+                    }
+                    
+                    // Update action buttons
+                    actionButtons.forEach(btn => {
+                        const action = btn.dataset.action;
+                        const isActive = this.isActionActive(vinificatore, sector.key, action);
+                        const actionData = this.getActionData(vinificatore, sector.key, action);
+                        
+                        btn.classList.toggle('active', isActive);
+                        
+                        // Remove existing badges
+                        const existingBadge = btn.querySelector('.action-badge');
+                        if (existingBadge) existingBadge.remove();
+                        
+                        // Add badge if active
+                        if (isActive && actionData?.priority) {
+                            const badge = document.createElement('span');
+                            badge.className = 'action-badge';
+                            badge.textContent = actionData.priority;
+                            btn.appendChild(badge);
+                        }
+                    });
+                });
+            }
+
+            isActionActive(vinificatore, sector, action) {
+                const actionData = this.getActionData(vinificatore, sector, action);
+                return actionData ? actionData.active : false;
+            }
+
+            getActionData(vinificatore, sector, action) {
+                return this.activities[vinificatore]?.[sector]?.[action];
+            }
+
+            getSectorMeasurements(vinificatore, sector) {
+                if (!this.activities[vinificatore] || !this.activities[vinificatore][sector]) {
+                    return { time: '', temperature: '', density: '' };
+                }
+                return this.activities[vinificatore][sector].measurements || { time: '', temperature: '', density: '' };
+            }
+
+            saveMeasurement(vinificatore, sector, measurementType, value) {
+                if (!this.activities[vinificatore]) this.activities[vinificatore] = {};
+                if (!this.activities[vinificatore][sector]) this.activities[vinificatore][sector] = {};
+                if (!this.activities[vinificatore][sector].measurements) {
+                    this.activities[vinificatore][sector].measurements = {};
+                }
+                
+                this.activities[vinificatore][sector].measurements[measurementType] = value;
+                this.debouncedSave();
+            }
+
+            // Todo Methods
             addTask() {
                 const input = document.getElementById('taskInput');
                 const text = input.value.trim();
@@ -1519,6 +1589,260 @@
                     task.completed = !task.completed;
                     task.synced = false;
                     this.saveAllData();
+                    this.updateTodoUI();
+                }
+            }
+
+            deleteTask(id) {
+                this.tasks = this.tasks.filter(t => t.id !== id);
+                this.saveAllData();
+                this.updateTodoUI();
+            }
+
+            updateTodoUI() {
+                const container = document.getElementById('tasksContainer');
+                const emptyState = document.getElementById('emptyState');
+                
+                if (this.tasks.length === 0) {
+                    container.innerHTML = '';
+                    container.appendChild(emptyState);
+                } else {
+                    container.innerHTML = '';
+                    
+                    this.tasks.forEach(task => {
+                        const taskElement = this.createTaskElement(task);
+                        container.appendChild(taskElement);
+                    });
+                }
+            }
+
+            createTaskElement(task) {
+                const div = document.createElement('div');
+                div.className = `task-item ${task.completed ? 'completed' : ''}`;
+                
+                const createdAt = new Date(task.createdAt);
+                const timeStr = createdAt.toLocaleString('it-IT', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                div.innerHTML = `
+                    <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''} 
+                           onchange="app.toggleTask('${task.id}')">
+                    <span class="task-text">${this.escapeHtml(task.text)}</span>
+                    <span class="task-time">${timeStr}</span>
+                    <button class="delete-btn" onclick="app.deleteTask('${task.id}')">🗑️</button>
+                `;
+                
+                return div;
+            }
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            // Firebase Configuration Methods
+            showFirebaseSetup() {
+                this.currentPopupType = 'firebase-config';
+                const defaultConfig = `{
+  "apiKey": "your-api-key-here",
+  "authDomain": "your-project.firebaseapp.com",
+  "projectId": "your-project-id",
+  "storageBucket": "your-project.appspot.com",
+  "messagingSenderId": "123456789",
+  "appId": "your-app-id"
+}`;
+                this.showPopup('Configurazione Firebase', defaultConfig, 'firebase-config');
+            }
+
+            hideFirebaseBanner() {
+                document.getElementById('firebaseBanner').classList.remove('show');
+            }
+
+            // Popup Methods
+            showPopup(title, value = '', type = 'report') {
+                const popup = document.getElementById('popupOverlay');
+                const titleEl = document.getElementById('popupTitle');
+                const reportContent = document.getElementById('reportContent');
+                const timeInput = document.getElementById('timeInput');
+                const durationInput = document.getElementById('durationInput');
+                const firebaseConfigInput = document.getElementById('firebaseConfigInput');
+                const confirmBtn = document.getElementById('popupConfirm');
+                
+                titleEl.textContent = title;
+                
+                // Hide all content types
+                reportContent.style.display = 'none';
+                timeInput.style.display = 'none';
+                durationInput.style.display = 'none';
+                firebaseConfigInput.style.display = 'none';
+                
+                // Show appropriate content
+                if (type === 'firebase-config') {
+                    firebaseConfigInput.style.display = 'block';
+                    firebaseConfigInput.value = value;
+                    confirmBtn.textContent = 'Configura Firebase';
+                    setTimeout(() => firebaseConfigInput.focus(), 100);
+                } else if (type === 'report') {
+                    reportContent.style.display = 'block';
+                    reportContent.textContent = value;
+                    confirmBtn.textContent = 'Invia Email';
+                } else if (type === 'time') {
+                    timeInput.style.display = 'block';
+                    timeInput.value = value;
+                    confirmBtn.textContent = 'Conferma';
+                    setTimeout(() => timeInput.focus(), 100);
+                } else if (type === 'duration') {
+                    durationInput.style.display = 'block';
+                    durationInput.value = value;
+                    confirmBtn.textContent = 'Conferma';
+                    setTimeout(() => durationInput.focus(), 100);
+                }
+                
+                popup.classList.add('active');
+            }
+
+            closePopup() {
+                document.getElementById('popupOverlay').classList.remove('active');
+                this.currentPopupType = null;
+                this.pendingAction = null;
+            }
+
+            confirmPopup() {
+                if (this.currentPopupType === 'firebase-config') {
+                    this.confirmFirebaseConfig();
+                } else if (this.currentPopupType === 'time') {
+                    this.confirmTime();
+                } else if (this.currentPopupType === 'duration') {
+                    this.confirmDuration();
+                } else if (this.currentPopupType === 'report') {
+                    this.confirmShare();
+                }
+            }
+
+            confirmFirebaseConfig() {
+                const configText = document.getElementById('firebaseConfigInput').value.trim();
+                
+                try {
+                    const config = JSON.parse(configText);
+                    
+                    if (config.apiKey && config.projectId) {
+                        this.showNotification('Configurazione salvata! Per attivarla, sostituisci il codice HTML.', 'success');
+                        localStorage.setItem('firebaseConfig', configText);
+                        this.closePopup();
+                    } else {
+                        this.showNotification('Configurazione non valida', 'error');
+                    }
+                } catch (error) {
+                    this.showNotification('JSON non valido', 'error');
+                }
+            }
+
+            confirmTime() {
+                const timeValue = document.getElementById('timeInput').value;
+                
+                if (this.pendingAction) {
+                    const { vinificatore, sector } = this.pendingAction;
+                    this.saveMeasurement(vinificatore, sector, 'time', timeValue);
+                    this.updateVinificatorePage(vinificatore);
+                }
+                
+                this.closePopup();
+            }
+
+            confirmShare() {
+                const report = document.getElementById('reportContent').textContent;
+                const subject = encodeURIComponent('Report Attività Vinificatori');
+                const body = encodeURIComponent(report);
+                const mailtoLink = `mailto:?subject=${subject}&body=${body}`;
+                
+                window.location.href = mailtoLink;
+                this.closePopup();
+            }
+
+            // Report and sharing
+            shareReport() {
+                const report = this.generateReport();
+                this.currentPopupType = 'report';
+                this.showPopup('Report Attività Vinificatori', report, 'report');
+            }
+
+            generateReport() {
+                const now = new Date();
+                const timestamp = now.toLocaleString('it-IT');
+                
+                let report = `REPORT ATTIVITÀ VINIFICATORI\n`;
+                report += `Data: ${timestamp}\n`;
+                report += `Utente: ${this.userId}\n`;
+                report += `Sync: ${this.firebaseReady ? 'Cloud attivo' : 'Solo locale'}\n`;
+                report += `${'='.repeat(50)}\n\n`;
+                
+                const priorityEntries = Object.entries(this.priorities).sort(([,a], [,b]) => a - b);
+                
+                if (priorityEntries.length > 0) {
+                    report += `PRIORITÀ VINIFICATORI:\n`;
+                    report += `${'-'.repeat(25)}\n`;
+                    priorityEntries.forEach(([vinificatore, priority]) => {
+                        report += `${priority}. ${vinificatore}\n`;
+                    });
+                    report += `\n`;
+                }
+                
+                const activeVinificatori = Object.keys(this.activities).filter(v => this.hasActivities(v));
+                
+                report += `RIEPILOGO:\n`;
+                report += `${'-'.repeat(15)}\n`;
+                report += `Vinificatori con priorità: ${priorityEntries.length}\n`;
+                report += `Vinificatori con attività: ${activeVinificatori.length}\n`;
+                report += `Totale todo: ${this.tasks.length} (${this.tasks.filter(t => t.completed).length} completate)\n\n`;
+                
+                if (activeVinificatori.length > 0) {
+                    report += `DETTAGLIO ATTIVITÀ:\n`;
+                    report += `${'-'.repeat(20)}\n`;
+                    
+                    activeVinificatori.sort().forEach(vinificatore => {
+                        const priorityText = this.priorities[vinificatore] 
+                            ? ` (Priorità ${this.priorities[vinificatore]})` 
+                            : '';
+                        report += `\n${vinificatore}${priorityText}:\n`;
+                        
+                        this.sectors.forEach(sector => {
+                            const sectorActivities = this.activities[vinificatore][sector.key];
+                            if (sectorActivities) {
+                                const activeActions = Object.entries(sectorActivities)
+                                    .filter(([action, data]) => action !== 'measurements' && data?.active)
+                                    .sort(([,a], [,b]) => (a.priority || 0) - (b.priority || 0));
+                                
+                                if (activeActions.length > 0) {
+                                    const actionsText = activeActions.map(([action, data]) => 
+                                        `${data.priority}. ${action}`).join(', ');
+                                    report += `  ${sector.emoji} ${sector.name}: ${actionsText}\n`;
+                                }
+                            }
+                        });
+                    });
+                }
+                
+                report += `\n${'='.repeat(50)}\n`;
+                report += `Report Vinificatori PWA v2.0`;
+                
+                return report;
+            }
+
+            // Reset and data management
+            resetAll() {
+                const confirmed = confirm('Sei sicuro di voler cancellare tutti i dati? Questa azione non può essere annullata.');
+                
+                if (confirmed) {
+                    this.priorities = {};
+                    this.activities = {};
+                    this.tasks = [];
+                    
+                    this.saveAllData();
                     this.updateHomeIndicators();
                     this.updateTodoUI();
                     
@@ -1530,7 +1854,6 @@
                 }
             }
 
-            // Simplified export/import methods
             exportAllData() {
                 const data = {
                     vinificatori: {
@@ -1567,7 +1890,6 @@
                         const data = JSON.parse(e.target.result);
                         
                         if (data.vinificatori && data.tasks) {
-                            // Import data
                             if (data.vinificatori.priorities) {
                                 Object.assign(this.priorities, data.vinificatori.priorities);
                             }
@@ -1597,211 +1919,18 @@
                 event.target.value = '';
             }
 
-            // Remaining core methods simplified for space
-            openVinificatorePage(vinificatore) {
-                document.getElementById('homePage').style.display = 'none';
-                
-                let page = document.getElementById(`page-${vinificatore}`);
-                if (!page) {
-                    page = this.createVinificatorePage(vinificatore);
-                    document.getElementById('vinificatoriPage').appendChild(page);
-                }
-                
-                page.style.display = 'flex';
-                page.classList.add('active', 'fade-in');
-                
-                this.currentVinificatorePage = vinificatore;
-                this.updateVinificatorePage(vinificatore);
-            }
-
-            createVinificatorePage(vinificatore) {
-                const page = document.createElement('div');
-                page.id = `page-${vinificatore}`;
-                page.className = 'vinificatore-page';
-                
-                page.innerHTML = `
-                    <div class="vinificatore-header">${vinificatore}</div>
-                    <button class="back-btn" onclick="app.goHome()">← Indietro</button>
-                    <div class="sectors-container">
-                        ${this.sectors.map(sector => `
-                            <div class="sector" data-sector="${sector.key}">
-                                <div class="sector-header" onclick="app.showTimePopup('${vinificatore}', '${sector.key}')">
-                                    <span class="sector-emoji">${sector.emoji}</span>
-                                    <span class="sector-name">${sector.name}</span>
-                                </div>
-                                <div class="actions-row">
-                                    ${this.actions.map(action => `
-                                        <button class="action-btn" 
-                                                onclick="app.toggleAction('${vinificatore}', '${sector.key}', '${action}', this)">
-                                            <span class="action-text">${action}</span>
-                                        </button>
-                                    `).join('')}
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-                
-                return page;
-            }
-
-            goHome() {
-                document.querySelectorAll('.vinificatore-page').forEach(page => {
-                    page.style.display = 'none';
-                    page.classList.remove('active');
-                });
-                
-                document.getElementById('homePage').style.display = 'block';
-                this.currentVinificatorePage = 'home';
-                this.updateHomeIndicators();
-            }
-
-            showTimePopup(vinificatore, sector) {
-                this.currentPopupType = 'time';
-                this.pendingAction = { vinificatore, sector };
-                
-                const measurements = this.getSectorMeasurements(vinificatore, sector);
-                const sectorName = this.sectors.find(s => s.key === sector)?.name || sector;
-                
-                this.showPopup(`Orario ${sectorName}`, measurements.time, 'time');
-            }
-
-            confirmTime() {
-                const timeValue = document.getElementById('timeInput').value;
-                
-                if (this.pendingAction) {
-                    const { vinificatore, sector } = this.pendingAction;
-                    this.saveMeasurement(vinificatore, sector, 'time', timeValue);
-                    this.debouncedSave();
-                    this.updateVinificatorePage(vinificatore);
-                }
-                
-                this.closePopup();
-            }
-
-            confirmShare() {
-                const report = document.getElementById('reportContent').textContent;
-                const subject = encodeURIComponent('Report Attività Vinificatori');
-                const body = encodeURIComponent(report);
-                const mailtoLink = `mailto:?subject=${subject}&body=${body}`;
-                
-                window.location.href = mailtoLink;
-                this.closePopup();
-            }
-
-            toggleAction(vinificatore, sector, action, buttonEl) {
-                if (!this.activities[vinificatore]) this.activities[vinificatore] = {};
-                if (!this.activities[vinificatore][sector]) this.activities[vinificatore][sector] = {};
-                
-                const currentData = this.activities[vinificatore][sector][action];
-                const isCurrentlyActive = currentData ? currentData.active : false;
-                
-                if (isCurrentlyActive) {
-                    delete this.activities[vinificatore][sector][action];
-                } else {
-                    this.activities[vinificatore][sector][action] = {
-                        active: true,
-                        priority: 1,
-                        timestamp: new Date().toISOString()
-                    };
-                }
-                
-                buttonEl.classList.add('pulse');
-                setTimeout(() => buttonEl.classList.remove('pulse'), 300);
-                
-                this.debouncedSave();
-                this.updateVinificatorePage(vinificatore);
-                this.updateHomeIndicators();
-            }
-
-            updateVinificatorePage(vinificatore) {
-                const page = document.getElementById(`page-${vinificatore}`);
-                if (!page) return;
-                
-                this.sectors.forEach(sector => {
-                    const sectorEl = page.querySelector(`[data-sector="${sector.key}"]`);
-                    const actionButtons = sectorEl.querySelectorAll('.action-btn');
-                    
-                    actionButtons.forEach(btn => {
-                        const action = btn.dataset.action || btn.querySelector('.action-text').textContent;
-                        const isActive = this.isActionActive(vinificatore, sector.key, action);
-                        
-                        btn.classList.toggle('active', isActive);
-                    });
-                });
-            }
-
-            isActionActive(vinificatore, sector, action) {
-                const actionData = this.getActionData(vinificatore, sector, action);
-                return actionData ? actionData.active : false;
-            }
-
-            getActionData(vinificatore, sector, action) {
-                return this.activities[vinificatore]?.[sector]?.[action];
-            }
-
-            getSectorMeasurements(vinificatore, sector) {
-                if (!this.activities[vinificatore] || !this.activities[vinificatore][sector]) {
-                    return { time: '', temperature: '', density: '' };
-                }
-                return this.activities[vinificatore][sector].measurements || { time: '', temperature: '', density: '' };
-            }
-
-            saveMeasurement(vinificatore, sector, measurementType, value) {
-                if (!this.activities[vinificatore]) this.activities[vinificatore] = {};
-                if (!this.activities[vinificatore][sector]) this.activities[vinificatore][sector] = {};
-                if (!this.activities[vinificatore][sector].measurements) {
-                    this.activities[vinificatore][sector].measurements = {};
-                }
-                
-                this.activities[vinificatore][sector].measurements[measurementType] = value;
-            }
-
-            shareReport() {
-                const report = this.generateReport();
-                this.currentPopupType = 'report';
-                this.showPopup('Report Attività Vinificatori', report, 'report');
-            }
-
-            generateReport() {
-                const now = new Date();
-                const timestamp = now.toLocaleString('it-IT');
-                
-                let report = `REPORT ATTIVITÀ VINIFICATORI\n`;
-                report += `Data: ${timestamp}\n`;
-                report += `Utente: ${this.userId}\n`;
-                report += `Sync: ${this.firebaseReady ? 'Cloud attivo' : 'Solo locale'}\n`;
-                report += `${'='.repeat(50)}\n\n`;
-                
-                const priorityEntries = Object.entries(this.priorities).sort(([,a], [,b]) => a - b);
-                
-                if (priorityEntries.length > 0) {
-                    report += `PRIORITÀ VINIFICATORI:\n`;
-                    report += `${'-'.repeat(25)}\n`;
-                    priorityEntries.forEach(([vinificatore, priority]) => {
-                        report += `${priority}. ${vinificatore}\n`;
-                    });
-                    report += `\n`;
-                }
-                
-                const activeVinificatori = Object.keys(this.activities).filter(v => this.hasActivities(v));
-                
-                report += `RIEPILOGO:\n`;
-                report += `${'-'.repeat(15)}\n`;
-                report += `Vinificatori con priorità: ${priorityEntries.length}\n`;
-                report += `Vinificatori con attività: ${activeVinificatori.length}\n`;
-                report += `Totale todo: ${this.tasks.length} (${this.tasks.filter(t => t.completed).length} completate)\n\n`;
-                
-                report += `${'='.repeat(50)}\n`;
-                report += `Report Vinificatori PWA v2.0 con Firebase`;
-                
-                return report;
-            }
-
+            // Sync methods
             syncAllData() {
-                // Fallback sync method
                 this.saveAllData();
                 this.showNotification('Dati salvati localmente', 'success');
+            }
+
+            forceFirebaseSync() {
+                if (!this.firebaseReady) {
+                    this.showNotification('Firebase non configurato', 'warning');
+                    return;
+                }
+                this.showNotification('Sync Firebase non ancora implementato', 'info');
             }
 
             debouncedSave() {
@@ -1887,178 +2016,18 @@
             if (app) app.hideFirebaseBanner();
         }
 
-        // Check for saved Firebase config on load
-        document.addEventListener('DOMContentLoaded', () => {
-            const savedConfig = localStorage.getItem('firebaseConfig');
-            if (savedConfig) {
-                try {
-                    const config = JSON.parse(savedConfig);
-                    // Replace the default config in the script tag
-                    console.log('Config Firebase salvata trovata');
-                } catch (e) {
-                    console.error('Config Firebase salvata non valida');
-                }
+        // Prevent context menu and text selection on interactive elements
+        document.addEventListener('contextmenu', (e) => {
+            if (e.target.closest('.vinificatore-btn') || e.target.closest('.action-btn') || e.target.closest('.nav-btn')) {
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('selectstart', (e) => {
+            if (e.target.closest('.vinificatore-btn') || e.target.closest('.action-btn') || e.target.closest('.nav-btn')) {
+                e.preventDefault();
             }
         });
     </script>
 </body>
 </html>
-                    this.updateTodoUI();
-                }
-            }
-
-            deleteTask(id) {
-                this.tasks = this.tasks.filter(t => t.id !== id);
-                this.saveAllData();
-                this.updateTodoUI();
-            }
-
-            updateTodoUI() {
-                const container = document.getElementById('tasksContainer');
-                const emptyState = document.getElementById('emptyState');
-                
-                if (this.tasks.length === 0) {
-                    container.innerHTML = '';
-                    container.appendChild(emptyState);
-                } else {
-                    container.innerHTML = '';
-                    
-                    this.tasks.forEach(task => {
-                        const taskElement = this.createTaskElement(task);
-                        container.appendChild(taskElement);
-                    });
-                }
-            }
-
-            createTaskElement(task) {
-                const div = document.createElement('div');
-                div.className = `task-item ${task.completed ? 'completed' : ''}`;
-                
-                const createdAt = new Date(task.createdAt);
-                const timeStr = createdAt.toLocaleString('it-IT', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
-                
-                div.innerHTML = `
-                    <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''} 
-                           onchange="app.toggleTask('${task.id}')">
-                    <span class="task-text">${this.escapeHtml(task.text)}</span>
-                    <span class="task-time">${timeStr}</span>
-                    <button class="delete-btn" onclick="app.deleteTask('${task.id}')">🗑️</button>
-                `;
-                
-                return div;
-            }
-
-            escapeHtml(text) {
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
-            }
-
-            showPopup(title, value = '', type = 'report') {
-                const popup = document.getElementById('popupOverlay');
-                const titleEl = document.getElementById('popupTitle');
-                const reportContent = document.getElementById('reportContent');
-                const timeInput = document.getElementById('timeInput');
-                const durationInput = document.getElementById('durationInput');
-                const firebaseConfigInput = document.getElementById('firebaseConfigInput');
-                const confirmBtn = document.getElementById('popupConfirm');
-                
-                titleEl.textContent = title;
-                
-                // Hide all content types
-                reportContent.style.display = 'none';
-                timeInput.style.display = 'none';
-                durationInput.style.display = 'none';
-                firebaseConfigInput.style.display = 'none';
-                
-                // Show appropriate content
-                if (type === 'firebase-config') {
-                    firebaseConfigInput.style.display = 'block';
-                    firebaseConfigInput.value = `{
-  "apiKey": "your-api-key-here",
-  "authDomain": "your-project.firebaseapp.com",
-  "projectId": "your-project-id",
-  "storageBucket": "your-project.appspot.com",
-  "messagingSenderId": "123456789",
-  "appId": "your-app-id"
-}`;
-                    confirmBtn.textContent = 'Configura Firebase';
-                    setTimeout(() => firebaseConfigInput.focus(), 100);
-                } else if (type === 'report') {
-                    reportContent.style.display = 'block';
-                    reportContent.textContent = value;
-                    confirmBtn.textContent = 'Invia Email';
-                } else if (type === 'time') {
-                    timeInput.style.display = 'block';
-                    timeInput.value = value;
-                    confirmBtn.textContent = 'Conferma';
-                    setTimeout(() => timeInput.focus(), 100);
-                } else if (type === 'duration') {
-                    durationInput.style.display = 'block';
-                    durationInput.value = value;
-                    confirmBtn.textContent = 'Conferma';
-                    setTimeout(() => durationInput.focus(), 100);
-                }
-                
-                popup.classList.add('active');
-            }
-
-            closePopup() {
-                document.getElementById('popupOverlay').classList.remove('active');
-                this.currentPopupType = null;
-                this.pendingAction = null;
-            }
-
-            confirmPopup() {
-                if (this.currentPopupType === 'firebase-config') {
-                    this.confirmFirebaseConfig();
-                } else if (this.currentPopupType === 'time') {
-                    this.confirmTime();
-                } else if (this.currentPopupType === 'duration') {
-                    this.confirmDuration();
-                } else if (this.currentPopupType === 'report') {
-                    this.confirmShare();
-                }
-            }
-
-            confirmFirebaseConfig() {
-                const configText = document.getElementById('firebaseConfigInput').value.trim();
-                
-                try {
-                    const config = JSON.parse(configText);
-                    
-                    if (config.apiKey && config.projectId) {
-                        this.showNotification('Configurazione salvata! Ricarica la pagina.', 'success');
-                        localStorage.setItem('firebaseConfig', configText);
-                        this.closePopup();
-                        
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 2000);
-                    } else {
-                        this.showNotification('Configurazione non valida', 'error');
-                    }
-                } catch (error) {
-                    this.showNotification('JSON non valido', 'error');
-                }
-            }
-
-            resetAll() {
-                const confirmed = confirm('Sei sicuro di voler cancellare tutti i dati? Questa azione non può essere annullata.');
-                
-                if (confirmed) {
-                    this.priorities = {};
-                    this.activities = {};
-                    this.tasks = [];
-                    
-                    // Clear cloud data if Firebase is configured
-                    if (this.firebaseReady) {
-                        this.pushToFirebase();
-                    }
-                    
-                    this.saveAllData();
