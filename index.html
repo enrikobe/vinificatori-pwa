@@ -21,7 +21,7 @@
     
     <!-- PWA Setup Script -->
     <script>
-        // Configurazione Firebase - SOSTITUITA AUTOMATICAMENTE
+        // Configurazione Firebase
         const firebaseConfig = {
             "apiKey": "AIzaSyAiTcRRpKzWyLU_7hT2g9QlFAgtX5H1JHQ",
             "authDomain": "vinificatori-pwa.firebaseapp.com",
@@ -31,7 +31,7 @@
             "appId": "1:643215569794:web:c9545d0a2e9dcdea1e159b"
         };
 
-        // Inizializza Firebase - FIXED: renamed variables to avoid conflict
+        // Inizializza Firebase
         let firebaseApp, db;
         window.firebaseReady = false;
 
@@ -177,7 +177,7 @@
             display: block;
         }
 
-        /* User ID Display */
+        /* User ID Display - ENHANCED */
         .user-id {
             position: absolute;
             top: 15px;
@@ -188,6 +188,106 @@
             border-radius: 12px;
             font-size: 10px;
             font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .user-id:hover {
+            background: rgba(114, 47, 55, 0.2);
+            max-width: 200px;
+        }
+
+        /* ID Management Popup */
+        .id-popup {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            padding: 20px;
+        }
+
+        .id-popup.active {
+            display: flex;
+        }
+
+        .id-popup-content {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .id-popup h3 {
+            margin-bottom: 20px;
+            color: #495057;
+            font-size: 18px;
+        }
+
+        .id-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 16px;
+            text-align: center;
+            margin-bottom: 20px;
+            font-family: monospace;
+        }
+
+        .id-input:focus {
+            outline: none;
+            border-color: #722F37;
+        }
+
+        .id-popup-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .id-popup-btn {
+            background: #722F37;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 80px;
+        }
+
+        .id-popup-btn:hover {
+            background: #8B4A47;
+        }
+
+        .id-popup-btn.cancel {
+            background: #6c757d;
+        }
+
+        .id-popup-btn.cancel:hover {
+            background: #545b62;
+        }
+
+        .id-info {
+            font-size: 12px;
+            color: #6c757d;
+            margin-bottom: 15px;
+            line-height: 1.4;
         }
 
         /* Main Navigation */
@@ -863,6 +963,16 @@
                 padding: 10px 15px;
                 font-size: 12px;
             }
+
+            .user-id {
+                position: relative;
+                top: auto;
+                left: auto;
+                display: block;
+                margin-bottom: 10px;
+                text-align: center;
+                max-width: 100%;
+            }
         }
 
         @media (max-height: 600px) {
@@ -905,8 +1015,8 @@
 </head>
 <body>
     <div class="container">
-        <!-- User ID Display -->
-        <div class="user-id" id="userIdDisplay">Caricamento...</div>
+        <!-- User ID Display - CLICKABLE -->
+        <div class="user-id" id="userIdDisplay" onclick="showIdPopup()" title="Clicca per cambiare ID utente">Caricamento...</div>
         
         <!-- Sync Status Indicator -->
         <div class="sync-status" id="syncStatus">
@@ -916,6 +1026,23 @@
         <!-- Firebase Status Banner -->
         <div class="firebase-status" id="firebaseStatus">
             🔄 Verifica connessione Firebase...
+        </div>
+
+        <!-- ID Management Popup -->
+        <div class="id-popup" id="idPopup">
+            <div class="id-popup-content">
+                <h3>Gestione ID Utente</h3>
+                <div class="id-info">
+                    Il tuo ID utente identifica i tuoi dati su Firebase.<br>
+                    Usa lo stesso ID su più dispositivi per sincronizzare i dati.
+                </div>
+                <input type="text" class="id-input" id="idInput" placeholder="Inserisci il tuo ID (es: mario_rossi)" maxlength="50">
+                <div class="id-popup-buttons">
+                    <button class="id-popup-btn cancel" onclick="closeIdPopup()">Annulla</button>
+                    <button class="id-popup-btn" onclick="generateRandomId()">ID Casuale</button>
+                    <button class="id-popup-btn" onclick="saveCustomId()">Salva ID</button>
+                </div>
+            </div>
         </div>
 
         <!-- Main Navigation -->
@@ -999,7 +1126,7 @@
     </div>
 
     <script>
-        // Enhanced PWA App Class with Firebase Real-Time Sync (Fixed)
+        // Enhanced PWA App Class with Custom User ID
         class VinificatoriFirebasePWA {
             constructor() {
                 // Core properties
@@ -1054,13 +1181,68 @@
                 }
             }
 
+            // ENHANCED: Custom User ID Generation
             generateUserId() {
                 let userId = localStorage.getItem('userId');
                 if (!userId) {
+                    // Show ID selection popup on first use
+                    setTimeout(() => this.showIdSetupPopup(), 1000);
                     userId = 'user_' + Math.random().toString(36).substr(2, 9);
                     localStorage.setItem('userId', userId);
                 }
                 return userId;
+            }
+
+            // NEW: Show ID setup popup for first-time users
+            showIdSetupPopup() {
+                const popup = document.getElementById('idPopup');
+                const input = document.getElementById('idInput');
+                
+                // Pre-fill with current random ID
+                input.value = this.userId;
+                popup.classList.add('active');
+                
+                // Show helpful message
+                this.showNotification('Scegli un ID personalizzato per sincronizzare i dati tra dispositivi', 'info');
+            }
+
+            // NEW: Change user ID
+            changeUserId(newId) {
+                if (!newId || newId.trim() === '') {
+                    this.showNotification('ID non valido', 'error');
+                    return false;
+                }
+
+                // Clean the ID
+                const cleanId = newId.trim().toLowerCase()
+                    .replace(/[^a-z0-9_-]/g, '_')
+                    .substring(0, 50);
+
+                if (cleanId !== this.userId) {
+                    const oldId = this.userId;
+                    this.userId = cleanId;
+                    
+                    // Save new ID
+                    localStorage.setItem('userId', cleanId);
+                    
+                    // Stop current Firebase listener
+                    if (this.realTimeListener) {
+                        this.realTimeListener();
+                        this.realTimeListener = null;
+                    }
+                    
+                    // Restart Firebase with new ID
+                    if (this.firebaseReady) {
+                        this.startFirebaseSync();
+                    }
+                    
+                    this.updateUserDisplay();
+                    this.showNotification(`ID cambiato da "${oldId}" a "${cleanId}"`, 'success');
+                    
+                    return true;
+                }
+                
+                return false;
             }
 
             showFirebaseStatus(status) {
@@ -1098,6 +1280,7 @@
                 const display = document.getElementById('userIdDisplay');
                 const status = this.firebaseReady ? 'cloud' : 'offline';
                 display.textContent = `${this.userId} • ${status}`;
+                display.title = `ID: ${this.userId}\nStato: ${status}\nClicca per cambiare ID`;
             }
 
             updateSyncStatus() {
@@ -1371,6 +1554,11 @@
                 
                 document.getElementById('durationInput').addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') this.confirmPopup();
+                });
+
+                // ID input events
+                document.getElementById('idInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') this.saveCustomId();
                 });
             }
 
@@ -2060,13 +2248,42 @@
             }
         }
 
-        // Initialize PWA - FIXED: renamed variable to avoid conflict
+        // Initialize PWA
         let vinificatoriApp;
         document.addEventListener('DOMContentLoaded', () => {
             vinificatoriApp = new VinificatoriFirebasePWA();
         });
 
-        // Global functions for inline handlers - FIXED: updated to use new variable name
+        // Global functions for inline handlers - ID Management
+        function showIdPopup() {
+            if (vinificatoriApp) {
+                const popup = document.getElementById('idPopup');
+                const input = document.getElementById('idInput');
+                input.value = vinificatoriApp.userId;
+                popup.classList.add('active');
+                setTimeout(() => input.focus(), 100);
+            }
+        }
+
+        function closeIdPopup() {
+            document.getElementById('idPopup').classList.remove('active');
+        }
+
+        function generateRandomId() {
+            const randomId = 'user_' + Math.random().toString(36).substr(2, 9);
+            document.getElementById('idInput').value = randomId;
+        }
+
+        function saveCustomId() {
+            if (vinificatoriApp) {
+                const newId = document.getElementById('idInput').value.trim();
+                if (vinificatoriApp.changeUserId(newId)) {
+                    closeIdPopup();
+                }
+            }
+        }
+
+        // Global functions for inline handlers - Original Functions
         function showPage(pageId) {
             if (vinificatoriApp) vinificatoriApp.showPage(pageId);
         }
