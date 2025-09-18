@@ -81,7 +81,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #722F37 0%, #8B4A47 25%, #667eea 75%, #764ba2 100%);
+            background: linear-gradient(135deg, #722F37 0%, #8B4A47 25%, #A0575F 50%, #B86B77 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -90,15 +90,122 @@
             overflow-x: hidden;
         }
 
+        /* LOGIN SCREEN */
+        .login-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #722F37 0%, #8B4A47 25%, #A0575F 75%, #B86B77 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            color: white;
+            text-align: center;
+            padding: 25px;
+        }
+
+        .login-screen.hidden {
+            display: none;
+        }
+
+        .login-logo {
+            font-size: 5rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .login-title {
+            font-size: 3rem;
+            font-weight: bold;
+            margin-bottom: 1.2rem;
+        }
+
+        .login-subtitle {
+            font-size: 1.4rem;
+            margin-bottom: 3.5rem;
+            opacity: 0.9;
+        }
+
+        .login-options {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            max-width: 450px;
+            width: 100%;
+        }
+
+        .login-btn {
+            padding: 1.5rem 2.5rem;
+            font-size: 1.4rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-height: 80px;
+        }
+
+        .login-btn.cloud {
+            background: linear-gradient(145deg, #28a745, #20c997);
+            color: white;
+        }
+
+        .login-btn.cloud:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(40, 167, 69, 0.4);
+        }
+
+        .login-btn.offline {
+            background: linear-gradient(145deg, #6c757d, #5a6268);
+            color: white;
+        }
+
+        .login-btn.offline:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(108, 117, 125, 0.4);
+        }
+
+        .loading-spinner {
+            margin-top: 2.5rem;
+            display: none;
+        }
+
+        .loading-spinner.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top: 4px solid #fff;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1.5rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
         .container {
             width: 100%;
-            max-width: min(95vw, 500px);
-            min-height: min(95vh, 800px);
+            max-width: min(95vw, 800px);
+            min-height: min(95vh, 1000px);
             background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-            backdrop-filter: blur(10px);
-            padding: min(30px, 4vw) min(20px, 3vw);
+            border-radius: 25px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(15px);
+            padding: min(40px, 4vw) min(30px, 3vw);
             display: flex;
             flex-direction: column;
             position: relative;
@@ -108,11 +215,11 @@
         .firebase-status {
             background: linear-gradient(135deg, #28a745, #20c997);
             color: white;
-            padding: 10px 15px;
-            border-radius: 8px;
-            margin-bottom: 15px;
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
             text-align: center;
-            font-size: 12px;
+            font-size: 16px;
             display: none;
             animation: slideDown 0.5s ease;
         }
@@ -133,16 +240,16 @@
         /* Sync Status Enhanced */
         .sync-status {
             position: absolute;
-            top: 15px;
-            right: 15px;
-            width: 14px;
-            height: 14px;
+            top: 20px;
+            right: 20px;
+            width: 18px;
+            height: 18px;
             border-radius: 50%;
             background: #dc3545;
             z-index: 100;
             cursor: pointer;
-            border: 2px solid white;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            border: 3px solid white;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
         }
 
         .sync-status.online {
@@ -160,37 +267,37 @@
 
         .sync-tooltip {
             position: absolute;
-            top: 25px;
+            top: 30px;
             right: 0;
             background: #333;
             color: white;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 11px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
             white-space: nowrap;
             display: none;
             z-index: 200;
-            max-width: 200px;
+            max-width: 250px;
         }
 
         .sync-status:hover .sync-tooltip {
             display: block;
         }
 
-        /* User ID Display - ENHANCED */
+        /* User ID Display */
         .user-id {
             position: absolute;
-            top: 15px;
-            left: 15px;
+            top: 20px;
+            left: 20px;
             background: rgba(114, 47, 55, 0.1);
             color: #722F37;
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 10px;
-            font-weight: 500;
+            padding: 8px 15px;
+            border-radius: 16px;
+            font-size: 14px;
+            font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
-            max-width: 150px;
+            max-width: 200px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -198,7 +305,7 @@
 
         .user-id:hover {
             background: rgba(114, 47, 55, 0.2);
-            max-width: 200px;
+            max-width: 280px;
         }
 
         /* ID Management Popup */
@@ -213,7 +320,7 @@
             align-items: center;
             justify-content: center;
             z-index: 2000;
-            padding: 20px;
+            padding: 25px;
         }
 
         .id-popup.active {
@@ -222,28 +329,28 @@
 
         .id-popup-content {
             background: white;
-            border-radius: 15px;
-            padding: 25px;
-            max-width: 400px;
+            border-radius: 20px;
+            padding: 35px;
+            max-width: 500px;
             width: 100%;
             text-align: center;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
         }
 
         .id-popup h3 {
-            margin-bottom: 20px;
+            margin-bottom: 25px;
             color: #495057;
-            font-size: 18px;
+            font-size: 24px;
         }
 
         .id-input {
             width: 100%;
-            padding: 12px;
+            padding: 18px;
             border: 2px solid #dee2e6;
-            border-radius: 8px;
-            font-size: 16px;
+            border-radius: 12px;
+            font-size: 20px;
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
             font-family: monospace;
         }
 
@@ -254,7 +361,7 @@
 
         .id-popup-buttons {
             display: flex;
-            gap: 10px;
+            gap: 15px;
             justify-content: center;
             flex-wrap: wrap;
         }
@@ -263,12 +370,12 @@
             background: #722F37;
             color: white;
             border: none;
-            border-radius: 8px;
-            padding: 10px 20px;
-            font-size: 14px;
+            border-radius: 12px;
+            padding: 15px 30px;
+            font-size: 18px;
             cursor: pointer;
             transition: all 0.3s ease;
-            min-width: 80px;
+            min-width: 120px;
         }
 
         .id-popup-btn:hover {
@@ -284,43 +391,43 @@
         }
 
         .id-info {
-            font-size: 12px;
+            font-size: 16px;
             color: #6c757d;
-            margin-bottom: 15px;
-            line-height: 1.4;
+            margin-bottom: 20px;
+            line-height: 1.5;
         }
 
         /* Main Navigation */
         .main-nav {
             display: flex;
             justify-content: center;
-            margin-bottom: 20px;
-            gap: 10px;
+            margin-bottom: 30px;
+            gap: 20px;
             flex-wrap: wrap;
         }
 
         .nav-btn {
             background: linear-gradient(145deg, #f8f9fa, #e9ecef);
             border: none;
-            border-radius: 25px;
-            padding: 12px 20px;
-            font-size: 14px;
+            border-radius: 30px;
+            padding: 18px 30px;
+            font-size: 20px;
             font-weight: 600;
             color: #495057;
             cursor: pointer;
             transition: all 0.3s ease;
-            min-width: 120px;
+            min-width: 180px;
         }
 
         .nav-btn.active {
             background: linear-gradient(145deg, #722F37, #8B4A47);
             color: white;
-            box-shadow: 0 4px 15px rgba(114, 47, 55, 0.3);
+            box-shadow: 0 8px 25px rgba(114, 47, 55, 0.3);
         }
 
         .nav-btn:hover:not(.active) {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
         }
 
         /* Page Containers */
@@ -338,28 +445,28 @@
         .home-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: min(20px, 3vw);
+            gap: min(30px, 3vw);
             flex-grow: 1;
             align-content: center;
-            padding: min(20px, 3vw) 0;
+            padding: min(30px, 3vw) 0;
             grid-template-rows: repeat(6, 1fr);
         }
 
         .vinificatore-btn {
             background: linear-gradient(145deg, #f8f9fa, #e9ecef);
             border: none;
-            border-radius: 15px;
-            padding: min(20px, 3vw);
-            font-size: clamp(14px, 3.5vw, 18px);
-            font-weight: 600;
+            border-radius: 20px;
+            padding: min(30px, 3vw);
+            font-size: clamp(20px, 4.5vw, 26px);
+            font-weight: 700;
             color: #495057;
             cursor: pointer;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
             position: relative;
             user-select: none;
             -webkit-user-select: none;
-            min-height: clamp(60px, 12vw, 80px);
+            min-height: clamp(100px, 16vw, 120px);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -367,42 +474,42 @@
         }
 
         .vinificatore-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            transform: translateY(-4px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
         }
 
         .vinificatore-btn:active {
             transform: translateY(0);
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
         }
 
         .vinificatore-btn.has-activities {
             background: linear-gradient(145deg, #d4edda, #c3e6cb);
             color: #155724;
-            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+            box-shadow: 0 8px 25px rgba(40, 167, 69, 0.3);
         }
 
         .vinificatore-btn.has-priority {
             background: linear-gradient(145deg, #fff3cd, #ffeaa7);
             color: #856404;
-            box-shadow: 0 4px 15px rgba(255, 193, 7, 0.4);
+            box-shadow: 0 8px 25px rgba(255, 193, 7, 0.4);
         }
 
         .priority-badge {
             position: absolute;
-            top: -8px;
-            right: -8px;
+            top: -12px;
+            right: -12px;
             background: #dc3545;
             color: white;
             border-radius: 50%;
-            width: clamp(20px, 4vw, 24px);
-            height: clamp(20px, 4vw, 24px);
+            width: clamp(28px, 6vw, 35px);
+            height: clamp(28px, 6vw, 35px);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: clamp(10px, 2.5vw, 12px);
+            font-size: clamp(14px, 3.5vw, 18px);
             font-weight: bold;
-            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
             pointer-events: none;
         }
 
@@ -439,8 +546,8 @@
 
         .vinificatore-header {
             text-align: center;
-            margin-bottom: min(15px, 2vh);
-            font-size: clamp(18px, 4vw, 22px);
+            margin-bottom: min(25px, 2vh);
+            font-size: clamp(26px, 5.5vw, 32px);
             font-weight: bold;
             color: #495057;
         }
@@ -448,37 +555,37 @@
         .back-btn {
             background: linear-gradient(145deg, #e9ecef, #dee2e6);
             border: none;
-            border-radius: 10px;
-            padding: min(12px, 2vw) min(20px, 3vw);
-            font-size: clamp(14px, 3vw, 16px);
+            border-radius: 15px;
+            padding: min(18px, 2vw) min(30px, 3vw);
+            font-size: clamp(18px, 4vw, 22px);
             font-weight: 600;
             color: #495057;
             cursor: pointer;
-            margin-bottom: min(15px, 2vh);
+            margin-bottom: min(25px, 2vh);
             transition: all 0.3s ease;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
             touch-action: manipulation;
         }
 
         .back-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
         }
 
         .sectors-container {
             flex-grow: 1;
             display: flex;
             flex-direction: column;
-            gap: min(12px, 2vh);
-            max-height: calc(100vh - min(200px, 30vh));
+            gap: min(22px, 2vh);
+            max-height: calc(100vh - min(250px, 30vh));
             overflow-y: auto;
         }
 
         .sector {
-            background: rgba(255, 255, 255, 0.8);
-            border-radius: 12px;
-            padding: min(12px, 2vw);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 18px;
+            padding: min(22px, 2vw);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
             flex-shrink: 0;
             position: relative;
         }
@@ -487,101 +594,98 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: 600;
-            font-size: clamp(12px, 3vw, 14px);
+            font-weight: 700;
+            font-size: clamp(18px, 4vw, 22px);
             color: #495057;
-            margin-bottom: min(10px, 1.5vh);
+            margin-bottom: min(18px, 1.5vh);
             text-align: center;
             cursor: pointer;
-            padding: min(8px, 1.5vw);
-            border-radius: 8px;
+            padding: min(15px, 1.5vw);
+            border-radius: 12px;
             transition: all 0.3s ease;
             touch-action: manipulation;
+            position: relative;
         }
 
         .sector-header:hover {
             background: rgba(0, 123, 255, 0.1);
         }
 
+        /* TIME BADGE - RIPOSIZIONATO A FIANCO DEL TESTO */
         .sector-time-badge {
-            position: absolute;
-            top: -8px;
-            left: 50%;
-            transform: translateX(-50%);
             background: #007bff;
             color: white;
-            border-radius: 8px;
-            padding: 2px 6px;
-            font-size: clamp(8px, 2vw, 10px);
-            font-weight: 500;
-            box-shadow: 0 2px 8px rgba(0, 123, 255, 0.4);
-            min-width: clamp(35px, 7vw, 40px);
-            text-align: center;
+            border-radius: 12px;
+            padding: 6px 12px;
+            font-size: clamp(12px, 2.5vw, 16px);
+            font-weight: 600;
+            box-shadow: 0 3px 10px rgba(0, 123, 255, 0.4);
+            margin-left: 15px;
             display: none;
             pointer-events: none;
         }
 
         .sector-time-badge.visible {
-            display: block;
+            display: inline-block;
         }
 
         .sector-emoji {
-            font-size: clamp(14px, 3.5vw, 16px);
-            margin-right: 6px;
+            font-size: clamp(20px, 4.5vw, 26px);
+            margin-right: 12px;
         }
 
         .actions-row {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: min(8px, 1.5vw);
-            margin-bottom: min(12px, 2vh);
+            gap: min(15px, 1.5vw);
+            margin-bottom: min(22px, 2vh);
         }
 
         .action-btn {
             background: linear-gradient(145deg, #f8f9fa, #e9ecef);
             border: none;
-            border-radius: 8px;
-            padding: min(8px, 1.5vw) min(4px, 1vw);
-            font-size: clamp(8px, 2vw, 10px);
-            font-weight: 500;
+            border-radius: 12px;
+            padding: min(15px, 1.5vw) min(10px, 1vw);
+            font-size: clamp(12px, 3vw, 16px);
+            font-weight: 600;
             color: #495057;
             cursor: pointer;
             transition: all 0.3s ease;
             position: relative;
-            min-height: clamp(35px, 8vw, 45px);
+            min-height: clamp(55px, 12vw, 70px);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             text-align: center;
-            line-height: 1.2;
+            line-height: 1.3;
             touch-action: manipulation;
         }
 
         .action-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
         }
 
         .action-btn.active {
             background: linear-gradient(145deg, #d1ecf1, #bee5eb);
             color: #0c5460;
-            box-shadow: 0 0 0 2px #17a2b8;
+            box-shadow: 0 0 0 3px #17a2b8;
         }
 
         .action-badge {
             position: absolute;
-            top: -4px;
-            right: -4px;
+            top: -8px;
+            right: -8px;
             background: #007bff;
             color: white;
             border-radius: 50%;
-            width: clamp(12px, 3vw, 16px);
-            height: clamp(12px, 3vw, 16px);
+            width: clamp(20px, 4vw, 26px);
+            height: clamp(20px, 4vw, 26px);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: clamp(8px, 2vw, 10px);
+            font-size: clamp(12px, 2.5vw, 16px);
             font-weight: bold;
             pointer-events: none;
         }
@@ -589,7 +693,7 @@
         .measurements-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: min(8px, 1.5vw);
+            gap: min(15px, 1.5vw);
         }
 
         .measurement-input {
@@ -598,28 +702,29 @@
         }
 
         .measurement-label {
-            font-size: clamp(8px, 2vw, 10px);
+            font-size: clamp(12px, 2.5vw, 16px);
             color: #6c757d;
-            margin-bottom: 4px;
+            margin-bottom: 8px;
             text-align: center;
+            font-weight: 600;
         }
 
         .measurement-field {
             width: 100%;
-            padding: min(6px, 1.5vw) min(4px, 1vw);
-            border: 1px solid #dee2e6;
-            border-radius: 6px;
-            font-size: clamp(9px, 2.2vw, 11px);
+            padding: min(12px, 1.5vw) min(10px, 1vw);
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            font-size: clamp(14px, 3vw, 18px);
             text-align: center;
             background: white;
-            min-height: clamp(24px, 5vw, 28px);
+            min-height: clamp(45px, 8vw, 55px);
             touch-action: manipulation;
         }
 
         .measurement-field:focus {
             outline: none;
             border-color: #007bff;
-            box-shadow: 0 0 0 1px rgba(0, 123, 255, 0.25);
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
         }
 
         /* TODO PAGE STYLES */
@@ -635,34 +740,38 @@
 
         .todo-header {
             text-align: center;
-            margin-bottom: 20px;
-            padding: 20px;
+            margin-bottom: 30px;
+            padding: 30px;
             background: linear-gradient(145deg, #722F37, #8B4A47);
             color: white;
-            border-radius: 15px;
-            box-shadow: 0 8px 25px rgba(114, 47, 55, 0.3);
+            border-radius: 20px;
+            box-shadow: 0 12px 35px rgba(114, 47, 55, 0.3);
         }
 
         .todo-header h1 {
-            font-size: clamp(20px, 4vw, 24px);
-            margin-bottom: 8px;
+            font-size: clamp(28px, 6vw, 36px);
+            margin-bottom: 12px;
+        }
+
+        .todo-header p {
+            font-size: clamp(16px, 3.5vw, 20px);
         }
 
         .input-section {
-            margin-bottom: 20px;
+            margin-bottom: 30px;
         }
 
         .input-group {
             display: flex;
-            gap: 10px;
+            gap: 15px;
         }
 
         .task-input {
             flex: 1;
-            padding: 15px;
+            padding: 22px;
             border: 2px solid #ddd;
-            border-radius: 10px;
-            font-size: 16px;
+            border-radius: 15px;
+            font-size: 20px;
             outline: none;
             transition: border-color 0.3s;
         }
@@ -672,21 +781,21 @@
         }
 
         .add-btn {
-            padding: 15px 25px;
+            padding: 22px 35px;
             background: linear-gradient(145deg, #722F37, #8B4A47);
             color: white;
             border: none;
-            border-radius: 10px;
+            border-radius: 15px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 20px;
             font-weight: bold;
             transition: all 0.3s;
             white-space: nowrap;
         }
 
         .add-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(114, 47, 55, 0.3);
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(114, 47, 55, 0.3);
         }
 
         .tasks-section {
@@ -697,10 +806,10 @@
         .task-item {
             display: flex;
             align-items: center;
-            padding: 15px;
-            margin-bottom: 10px;
+            padding: 22px;
+            margin-bottom: 15px;
             background: #f8f9fa;
-            border-radius: 10px;
+            border-radius: 15px;
             transition: all 0.3s;
             animation: slideIn 0.3s ease-out;
         }
@@ -712,91 +821,88 @@
         }
 
         .task-checkbox {
-            width: 20px;
-            height: 20px;
-            margin-right: 15px;
+            width: 28px;
+            height: 28px;
+            margin-right: 20px;
             cursor: pointer;
         }
 
         .task-text {
             flex: 1;
-            font-size: 16px;
+            font-size: 20px;
         }
 
         .task-time {
-            font-size: 12px;
+            font-size: 16px;
             color: #666;
-            margin-right: 10px;
+            margin-right: 15px;
         }
 
         .delete-btn {
             background: #dc3545;
             color: white;
             border: none;
-            padding: 5px 10px;
-            border-radius: 4px;
+            padding: 10px 15px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 16px;
         }
 
         .empty-state {
             text-align: center;
-            padding: 50px 20px;
+            padding: 70px 30px;
             color: #666;
         }
 
+        .empty-state h3 {
+            font-size: 26px;
+            margin-bottom: 15px;
+        }
+
+        .empty-state p {
+            font-size: 18px;
+        }
+
         .sync-section {
-            padding: 20px;
-            border-top: 1px solid #eee;
-            margin-top: 20px;
+            padding: 30px;
+            border-top: 2px solid #eee;
+            margin-top: 30px;
+        }
+
+        .sync-section h3 {
+            font-size: 22px;
+            margin-bottom: 20px;
+        }
+
+        .sync-btn, .export-btn, .import-btn, .firebase-sync-btn {
+            padding: 18px 30px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 18px;
+            margin-right: 15px;
+            margin-bottom: 15px;
+            font-weight: 600;
         }
 
         .sync-btn {
             background: #28a745;
             color: white;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            margin-right: 10px;
-            margin-bottom: 10px;
         }
 
         .export-btn {
             background: #ffc107;
             color: #212529;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            margin-right: 10px;
-            margin-bottom: 10px;
         }
 
         .import-btn {
             background: #6f42c1;
             color: white;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            margin-bottom: 10px;
         }
 
         .firebase-sync-btn {
             background: linear-gradient(135deg, #ff6b35, #f7931e);
             color: white;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            margin-right: 10px;
-            margin-bottom: 10px;
-            font-weight: 600;
         }
 
         .file-input {
@@ -815,7 +921,7 @@
             align-items: center;
             justify-content: center;
             z-index: 1000;
-            padding: min(20px, 4vw);
+            padding: min(30px, 4vw);
         }
 
         .popup-overlay.active {
@@ -824,29 +930,29 @@
 
         .popup {
             background: white;
-            border-radius: 15px;
-            padding: min(25px, 4vw);
-            max-width: min(90vw, 400px);
-            max-height: min(80vh, 600px);
+            border-radius: 20px;
+            padding: min(35px, 4vw);
+            max-width: min(90vw, 600px);
+            max-height: min(80vh, 800px);
             overflow-y: auto;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
             text-align: center;
         }
 
         .popup h3, .popup h4 {
-            margin-bottom: min(15px, 2vh);
+            margin-bottom: min(25px, 2vh);
             color: #495057;
-            font-size: clamp(16px, 3.5vw, 18px);
+            font-size: clamp(22px, 4.5vw, 28px);
         }
 
         .popup input, .popup textarea {
             width: 100%;
-            padding: min(12px, 2vw);
+            padding: min(18px, 2vw);
             border: 2px solid #dee2e6;
-            border-radius: 8px;
-            font-size: clamp(14px, 3vw, 16px);
+            border-radius: 12px;
+            font-size: clamp(18px, 4vw, 22px);
             text-align: center;
-            margin-bottom: min(20px, 3vh);
+            margin-bottom: min(30px, 3vh);
             font-family: monospace;
         }
 
@@ -857,22 +963,22 @@
 
         .popup-content {
             font-family: 'Courier New', monospace;
-            font-size: clamp(10px, 2.2vw, 12px);
-            line-height: 1.4;
+            font-size: clamp(14px, 3vw, 18px);
+            line-height: 1.5;
             color: #495057;
             white-space: pre-wrap;
-            margin-bottom: min(20px, 3vh);
-            max-height: min(40vh, 400px);
+            margin-bottom: min(30px, 3vh);
+            max-height: min(50vh, 600px);
             overflow-y: auto;
             background: #f8f9fa;
-            padding: min(15px, 3vw);
-            border-radius: 8px;
+            padding: min(25px, 3vw);
+            border-radius: 12px;
             text-align: left;
         }
 
         .popup-buttons {
             display: flex;
-            gap: min(10px, 2vw);
+            gap: min(18px, 2vw);
             justify-content: center;
             flex-wrap: wrap;
         }
@@ -881,13 +987,13 @@
             background: #722F37;
             color: white;
             border: none;
-            border-radius: 8px;
-            padding: min(10px, 2vw) min(20px, 3vw);
-            font-size: clamp(12px, 2.5vw, 14px);
+            border-radius: 12px;
+            padding: min(18px, 2vw) min(30px, 3vw);
+            font-size: clamp(16px, 3.5vw, 20px);
             cursor: pointer;
             transition: all 0.3s ease;
             touch-action: manipulation;
-            min-width: clamp(80px, 15vw, 120px);
+            min-width: clamp(120px, 20vw, 160px);
         }
 
         .popup-btn:hover {
@@ -940,28 +1046,28 @@
         /* RESPONSIVE ADJUSTMENTS */
         @media (max-width: 480px) {
             .container {
-                padding: 15px 10px;
-                border-radius: 15px;
-                min-height: 90vh;
+                padding: 20px 15px;
+                border-radius: 20px;
+                min-height: 94vh;
             }
             
             .home-grid {
-                gap: 12px;
+                gap: 18px;
             }
             
             .popup {
-                padding: 20px 15px;
-                max-width: 95vw;
+                padding: 25px 20px;
+                max-width: 96vw;
             }
 
             .main-nav {
-                gap: 5px;
+                gap: 10px;
             }
 
             .nav-btn {
-                min-width: 100px;
-                padding: 10px 15px;
-                font-size: 12px;
+                min-width: 140px;
+                padding: 15px 25px;
+                font-size: 18px;
             }
 
             .user-id {
@@ -969,51 +1075,86 @@
                 top: auto;
                 left: auto;
                 display: block;
-                margin-bottom: 10px;
+                margin-bottom: 15px;
                 text-align: center;
                 max-width: 100%;
+            }
+
+            .login-title {
+                font-size: 2.5rem;
+            }
+
+            .login-subtitle {
+                font-size: 1.2rem;
             }
         }
 
         @media (max-height: 600px) {
             .sectors-container {
-                gap: 8px;
-                max-height: calc(100vh - 140px);
+                gap: 12px;
+                max-height: calc(100vh - 180px);
             }
             
             .sector {
-                padding: 8px;
+                padding: 12px;
             }
             
             .container {
-                padding: 15px 20px;
-                min-height: 85vh;
+                padding: 20px 30px;
+                min-height: 90vh;
             }
         }
 
         @media (min-width: 768px) {
             .container {
-                max-width: min(80vw, 600px);
+                max-width: min(90vw, 900px);
             }
             
             .home-grid {
-                gap: 25px;
+                gap: 35px;
             }
             
             .sectors-container {
-                gap: 15px;
+                gap: 25px;
             }
         }
 
         @media (min-width: 1024px) {
             .container {
-                max-width: min(70vw, 700px);
-                min-height: min(90vh, 900px);
+                max-width: min(80vw, 1000px);
+                min-height: min(95vh, 1200px);
             }
         }
     </style>
 </head>
 <body>
+    <!-- LOGIN SCREEN -->
+    <div class="login-screen" id="loginScreen">
+        <div class="login-logo">🍇</div>
+        <div class="login-title">Vinificatori PWA</div>
+        <div class="login-subtitle">Gestione professionale vinificatori</div>
+        
+        <div class="login-options">
+            <button class="login-btn cloud" id="cloudBtn">
+                🔥 Modalità Cloud
+                <div style="font-size: 1rem; font-weight: normal; margin-top: 10px;">
+                    Sincronizzazione dati multi-dispositivo
+                </div>
+            </button>
+            <button class="login-btn offline" id="offlineBtn">
+                📱 Modalità Offline
+                <div style="font-size: 1rem; font-weight: normal; margin-top: 10px;">
+                    Solo su questo dispositivo
+                </div>
+            </button>
+        </div>
+        
+        <div class="loading-spinner" id="loadingSpinner">
+            <div class="spinner"></div>
+            <div class="loading-text" id="loadingText">Connessione in corso...</div>
+        </div>
+    </div>
+
     <div class="container">
         <!-- User ID Display - CLICKABLE -->
         <div class="user-id" id="userIdDisplay" onclick="showIdPopup()" title="Clicca per cambiare ID utente">Caricamento...</div>
@@ -1088,15 +1229,15 @@
             
             <div class="tasks-section" id="tasksContainer">
                 <div class="empty-state" id="emptyState">
-                    <div style="font-size: 48px; margin-bottom: 20px;">📝</div>
+                    <div style="font-size: 70px; margin-bottom: 30px;">📝</div>
                     <h3>Nessuna attività</h3>
                     <p>Aggiungi la tua prima attività per iniziare!</p>
                 </div>
             </div>
             
             <div class="sync-section">
-                <h3 style="margin-bottom: 15px;">🔄 Sincronizzazione Dati</h3>
-                <div style="margin-bottom: 15px;">
+                <h3>🔄 Sincronizzazione Dati</h3>
+                <div style="margin-bottom: 20px;">
                     <button class="firebase-sync-btn" onclick="forceFirebaseSync()" id="firebaseSyncBtn">🔥 Sync Cloud</button>
                     <button class="sync-btn" onclick="syncAllData()">🔄 Sync Locale</button>
                 </div>
@@ -1126,7 +1267,7 @@
     </div>
 
     <script>
-        // Enhanced PWA App Class with Custom User ID
+        // Enhanced PWA App Class with Login Screen and Improved UX
         class VinificatoriFirebasePWA {
             constructor() {
                 // Core properties
@@ -1149,6 +1290,8 @@
                 this.lastSync = null;
                 this.realTimeListener = null;
                 this.firebaseSyncTimer = null;
+                this.isOfflineMode = false;
+                this.isDataLoaded = false;
                 
                 this.sectors = [
                     { key: 'mattino', name: 'Mattino', emoji: '🌅' },
@@ -1158,8 +1301,58 @@
                 ];
                 
                 this.actions = ['Rimontaggio', 'Follatura', 'Campione', 'Aggiunta'];
+            }
+
+            async startCloudMode() {
+                document.getElementById('loadingSpinner').classList.add('active');
+                document.getElementById('loadingText').textContent = 'Connessione Firebase in corso...';
+                
+                this.isOfflineMode = false;
+                
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                if (window.firebaseReady) {
+                    document.getElementById('loadingText').textContent = 'Caricamento dati...';
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    this.init();
+                    await this.waitForDataLoad();
+                    this.hideLoginScreen();
+                } else {
+                    document.getElementById('loadingText').textContent = 'Firebase non disponibile';
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    this.startOfflineMode();
+                }
+            }
+
+            async startOfflineMode() {
+                document.getElementById('loadingSpinner').classList.add('active');
+                document.getElementById('loadingText').textContent = 'Modalità offline attivata...';
+                
+                this.isOfflineMode = true;
+                
+                await new Promise(resolve => setTimeout(resolve, 800));
                 
                 this.init();
+                this.hideLoginScreen();
+            }
+
+            hideLoginScreen() {
+                document.getElementById('loginScreen').classList.add('hidden');
+            }
+
+            async waitForDataLoad() {
+                return new Promise(resolve => {
+                    const checkData = () => {
+                        if (this.isDataLoaded || this.isOfflineMode) {
+                            resolve();
+                        } else {
+                            setTimeout(checkData, 100);
+                        }
+                    };
+                    checkData();
+                });
             }
 
             init() {
@@ -1170,50 +1363,38 @@
                 this.startAutoSave();
                 this.updateSyncStatus();
                 this.updateUserDisplay();
-                this.checkFirebaseStatus();
-            }
-
-            checkFirebaseStatus() {
-                if (window.firebaseReady) {
-                    this.onFirebaseReady();
+                
+                if (!this.isOfflineMode) {
+                    this.checkFirebaseStatus();
                 } else {
-                    this.showFirebaseStatus('error');
+                    this.isDataLoaded = true;
                 }
             }
 
-            // ENHANCED: Custom User ID Generation
+            checkFirebaseStatus() {
+                if (window.firebaseReady && !this.isOfflineMode) {
+                    this.onFirebaseReady();
+                } else {
+                    this.showFirebaseStatus('error');
+                    this.isDataLoaded = true;
+                }
+            }
+
             generateUserId() {
                 let userId = localStorage.getItem('userId');
                 if (!userId) {
-                    // Show ID selection popup on first use
-                    setTimeout(() => this.showIdSetupPopup(), 1000);
                     userId = 'user_' + Math.random().toString(36).substr(2, 9);
                     localStorage.setItem('userId', userId);
                 }
                 return userId;
             }
 
-            // NEW: Show ID setup popup for first-time users
-            showIdSetupPopup() {
-                const popup = document.getElementById('idPopup');
-                const input = document.getElementById('idInput');
-                
-                // Pre-fill with current random ID
-                input.value = this.userId;
-                popup.classList.add('active');
-                
-                // Show helpful message
-                this.showNotification('Scegli un ID personalizzato per sincronizzare i dati tra dispositivi', 'info');
-            }
-
-            // NEW: Change user ID
             changeUserId(newId) {
                 if (!newId || newId.trim() === '') {
                     this.showNotification('ID non valido', 'error');
                     return false;
                 }
 
-                // Clean the ID
                 const cleanId = newId.trim().toLowerCase()
                     .replace(/[^a-z0-9_-]/g, '_')
                     .substring(0, 50);
@@ -1222,17 +1403,14 @@
                     const oldId = this.userId;
                     this.userId = cleanId;
                     
-                    // Save new ID
                     localStorage.setItem('userId', cleanId);
                     
-                    // Stop current Firebase listener
                     if (this.realTimeListener) {
                         this.realTimeListener();
                         this.realTimeListener = null;
                     }
                     
-                    // Restart Firebase with new ID
-                    if (this.firebaseReady) {
+                    if (this.firebaseReady && !this.isOfflineMode) {
                         this.startFirebaseSync();
                     }
                     
@@ -1259,7 +1437,10 @@
                         statusEl.classList.remove('show');
                     }, 3000);
                 } else if (status === 'error') {
-                    statusEl.textContent = '⚠️ Firebase non disponibile - Modalità offline attiva';
+                    const message = this.isOfflineMode ? 
+                        '📱 Modalità offline attiva - Dati solo locali' :
+                        '⚠️ Firebase non disponibile - Modalità offline attiva';
+                    statusEl.textContent = message;
                     statusEl.classList.add('show', 'error');
                     setTimeout(() => {
                         statusEl.classList.remove('show');
@@ -1278,7 +1459,12 @@
 
             updateUserDisplay() {
                 const display = document.getElementById('userIdDisplay');
-                const status = this.firebaseReady ? 'cloud' : 'offline';
+                let status;
+                if (this.isOfflineMode) {
+                    status = 'offline';
+                } else {
+                    status = this.firebaseReady ? 'cloud' : 'offline';
+                }
                 display.textContent = `${this.userId} • ${status}`;
                 display.title = `ID: ${this.userId}\nStato: ${status}\nClicca per cambiare ID`;
             }
@@ -1287,7 +1473,10 @@
                 const status = document.getElementById('syncStatus');
                 const tooltip = document.getElementById('syncTooltip');
                 
-                if (!this.firebaseReady) {
+                if (this.isOfflineMode) {
+                    status.className = 'sync-status';
+                    tooltip.textContent = 'Modalità offline - Dati solo su questo dispositivo';
+                } else if (!this.firebaseReady) {
                     status.className = 'sync-status';
                     tooltip.textContent = 'Firebase non disponibile - Solo modalità offline';
                 } else if (this.syncInProgress) {
@@ -1302,10 +1491,12 @@
             }
 
             async startFirebaseSync() {
-                if (!this.firebaseReady || !window.db) return;
+                if (!this.firebaseReady || !window.db || this.isOfflineMode) {
+                    this.isDataLoaded = true;
+                    return;
+                }
                 
                 try {
-                    // Setup real-time listener using v9 compat API
                     const docRef = window.db.collection('vinificatori_data').doc(this.userId);
                     
                     this.realTimeListener = docRef.onSnapshot((snapshot) => {
@@ -1319,14 +1510,17 @@
                             console.log('Nessun documento cloud, creando...');
                             this.pushToFirebase();
                         }
+                        this.isDataLoaded = true;
                     }, (error) => {
                         console.error('Errore listener Firebase:', error);
                         this.showFirebaseStatus('error');
+                        this.isDataLoaded = true;
                     });
                     
                 } catch (error) {
                     console.error('Errore setup Firebase sync:', error);
                     this.showFirebaseStatus('error');
+                    this.isDataLoaded = true;
                 }
             }
 
@@ -1341,22 +1535,19 @@
                     if (cloudData.activities) this.activities = cloudData.activities;
                     if (cloudData.tasks) this.tasks = cloudData.tasks;
                     
-                    // Update UI
                     this.updateHomeIndicators();
                     this.updateTodoUI();
                     if (this.currentVinificatorePage !== 'home') {
                         this.updateVinificatorePage(this.currentVinificatorePage);
                     }
                     
-                    // Update local storage
                     this.saveAllDataLocal();
-                    
                     this.showNotification('Dati aggiornati dal cloud', 'success');
                 }
             }
 
             async pushToFirebase() {
-                if (!this.firebaseReady || !window.db || this.syncInProgress) return;
+                if (!this.firebaseReady || !window.db || this.syncInProgress || this.isOfflineMode) return;
                 
                 this.syncInProgress = true;
                 this.updateSyncStatus();
@@ -1371,7 +1562,7 @@
                         timestamp: Date.now(),
                         lastDevice: navigator.userAgent.substr(0, 50),
                         userId: this.userId,
-                        version: '2.0'
+                        version: '2.2'
                     };
                     
                     await docRef.set(dataToSync, { merge: true });
@@ -1426,8 +1617,7 @@
             saveAllData() {
                 this.saveAllDataLocal();
                 
-                // Auto-sync to Firebase if available
-                if (this.firebaseReady && !this.syncInProgress) {
+                if (this.firebaseReady && !this.syncInProgress && !this.isOfflineMode) {
                     this.debouncedFirebaseSync();
                 }
             }
@@ -1451,7 +1641,7 @@
                 
                 this.firebaseSyncTimer = setTimeout(() => {
                     this.pushToFirebase();
-                }, 2000); // 2 second delay for Firebase sync
+                }, 2000);
             }
 
             startAutoSave() {
@@ -1459,7 +1649,6 @@
                 window.addEventListener('beforeunload', () => this.saveAllData());
             }
 
-            // Page Navigation
             showPage(pageId) {
                 document.querySelectorAll('.page').forEach(page => {
                     page.classList.remove('active');
@@ -1484,7 +1673,7 @@
             setupEventListeners() {
                 const homeGrid = document.getElementById('homeGrid');
                 
-                // Mobile touch events
+                // FIXED: Long press per tutti i pulsanti vinificatore
                 homeGrid.addEventListener('touchstart', (e) => {
                     const button = e.target.closest('.vinificatore-btn');
                     if (!button) return;
@@ -1513,7 +1702,7 @@
 
                 homeGrid.addEventListener('touchcancel', () => this.cancelLongPress());
 
-                // Desktop mouse events
+                // Desktop mouse events per long press
                 homeGrid.addEventListener('mousedown', (e) => {
                     const button = e.target.closest('.vinificatore-btn');
                     if (button?.dataset.vinificatore) {
@@ -1530,6 +1719,29 @@
                         this.handleHomeButtonClick(button);
                     }
                 });
+
+                // FIXED: Long press globale per i pulsanti azione
+                document.addEventListener('touchstart', (e) => {
+                    const actionBtn = e.target.closest('.action-btn');
+                    if (actionBtn) {
+                        e.preventDefault();
+                        this.startActionLongPress(actionBtn);
+                    }
+                }, { passive: false });
+
+                document.addEventListener('touchend', (e) => {
+                    const actionBtn = e.target.closest('.action-btn');
+                    if (actionBtn) {
+                        e.preventDefault();
+                        if (this.isLongPressing) {
+                            this.cancelLongPress();
+                            return;
+                        }
+                        this.cancelLongPress();
+                    }
+                }, { passive: false });
+
+                document.addEventListener('touchcancel', () => this.cancelLongPress());
 
                 // Todo events
                 document.getElementById('taskInput').addEventListener('keypress', (e) => {
@@ -1555,11 +1767,22 @@
                 document.getElementById('durationInput').addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') this.confirmPopup();
                 });
+            }
 
-                // ID input events
-                document.getElementById('idInput').addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') this.saveCustomId();
-                });
+            startActionLongPress(button) {
+                this.cancelLongPress();
+                this.isLongPressing = false;
+                
+                this.longPressTimer = setTimeout(() => {
+                    this.isLongPressing = true;
+                    
+                    if (navigator.vibrate) navigator.vibrate(50);
+                    
+                    button.classList.add('pulse');
+                    setTimeout(() => button.classList.remove('pulse'), 500);
+                    
+                    this.showNotification('Tieni premuto per info avanzate', 'info');
+                }, this.longPressDelay);
             }
 
             handleHomeButtonClick(button) {
@@ -1686,10 +1909,10 @@
                     <div class="sectors-container">
                         ${this.sectors.map(sector => `
                             <div class="sector" data-sector="${sector.key}">
-                                <div class="sector-time-badge" data-time="${sector.key}"></div>
                                 <div class="sector-header" onclick="vinificatoriApp.showTimePopup('${vinificatore}', '${sector.key}')">
                                     <span class="sector-emoji">${sector.emoji}</span>
                                     <span class="sector-name">${sector.name}</span>
+                                    <span class="sector-time-badge" data-time="${sector.key}"></span>
                                 </div>
                                 <div class="actions-row">
                                     ${this.actions.map(action => `
@@ -1970,12 +2193,10 @@
                 
                 titleEl.textContent = title;
                 
-                // Hide all content types
                 reportContent.style.display = 'none';
                 timeInput.style.display = 'none';
                 durationInput.style.display = 'none';
                 
-                // Show appropriate content
                 if (type === 'report') {
                     reportContent.style.display = 'block';
                     reportContent.textContent = value;
@@ -2033,7 +2254,6 @@
                 this.closePopup();
             }
 
-            // Report and sharing
             shareReport() {
                 const report = this.generateReport();
                 this.currentPopupType = 'report';
@@ -2047,7 +2267,7 @@
                 let report = `REPORT ATTIVITÀ VINIFICATORI\n`;
                 report += `Data: ${timestamp}\n`;
                 report += `Utente: ${this.userId}\n`;
-                report += `Sync: ${this.firebaseReady ? 'Firebase attivo' : 'Solo locale'}\n`;
+                report += `Modalità: ${this.isOfflineMode ? 'Solo offline' : (this.firebaseReady ? 'Firebase attivo' : 'Solo locale')}\n`;
                 report += `${'='.repeat(50)}\n\n`;
                 
                 const priorityEntries = Object.entries(this.priorities).sort(([,a], [,b]) => a - b);
@@ -2097,21 +2317,20 @@
                 }
                 
                 report += `\n${'='.repeat(50)}\n`;
-                report += `Report Vinificatori PWA v2.0 con Firebase`;
+                report += `Report Vinificatori PWA v2.2 Enhanced`;
                 
                 return report;
             }
 
-            // Reset and data management
             resetAll() {
-                const confirmed = confirm('Sei sicuro di voler cancellare tutti i dati? Questa azione cancellerà anche i dati su Firebase.');
+                const confirmed = confirm('Sei sicuro di voler cancellare tutti i dati? Questa azione cancellerà anche i dati su Firebase (se attivo).');
                 
                 if (confirmed) {
                     this.priorities = {};
                     this.activities = {};
                     this.tasks = [];
                     
-                    this.saveAllData(); // This will also push to Firebase
+                    this.saveAllData();
                     this.updateHomeIndicators();
                     this.updateTodoUI();
                     
@@ -2131,8 +2350,9 @@
                     },
                     tasks: this.tasks,
                     userId: this.userId,
+                    isOfflineMode: this.isOfflineMode,
                     exportedAt: new Date().toISOString(),
-                    version: '2.0'
+                    version: '2.2'
                 };
                 
                 const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -2142,7 +2362,7 @@
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `vinificatori-firebase-backup-${new Date().toISOString().split('T')[0]}.json`;
+                a.download = `vinificatori-backup-${new Date().toISOString().split('T')[0]}.json`;
                 a.click();
                 
                 URL.revokeObjectURL(url);
@@ -2171,7 +2391,7 @@
                                 this.tasks = [...this.tasks, ...data.tasks];
                             }
                             
-                            this.saveAllData(); // This will sync to Firebase too
+                            this.saveAllData();
                             this.updateHomeIndicators();
                             this.updateTodoUI();
                             
@@ -2188,20 +2408,19 @@
                 event.target.value = '';
             }
 
-            // Sync methods
             syncAllData() {
                 this.saveAllData();
                 this.showNotification('Dati salvati e sincronizzati', 'success');
             }
 
             async forceFirebaseSync() {
-                if (!this.firebaseReady) {
-                    this.showNotification('Firebase non disponibile', 'warning');
+                if (!this.firebaseReady || this.isOfflineMode) {
+                    this.showNotification('Sincronizzazione Firebase non disponibile', 'warning');
                     return;
                 }
                 
                 await this.pushToFirebase();
-                this.showNotification('Sincronizzazione Firebase forzata completata', 'success');
+                this.showNotification('Sincronizzazione Firebase completata', 'success');
             }
 
             debouncedSave() {
@@ -2218,18 +2437,18 @@
                 const notification = document.createElement('div');
                 notification.style.cssText = `
                     position: fixed;
-                    top: 20px;
+                    top: 30px;
                     left: 50%;
                     transform: translateX(-50%);
                     background: ${type === 'error' ? '#dc3545' : type === 'warning' ? '#ffc107' : type === 'success' ? '#28a745' : '#722F37'};
                     color: ${type === 'warning' ? '#212529' : 'white'};
-                    padding: 12px 20px;
-                    border-radius: 8px;
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                    padding: 18px 30px;
+                    border-radius: 12px;
+                    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
                     z-index: 2000;
-                    font-size: 14px;
-                    font-weight: 500;
-                    max-width: 90%;
+                    font-size: 18px;
+                    font-weight: 600;
+                    max-width: 94%;
                     text-align: center;
                     animation: slideDown 0.3s ease;
                 `;
@@ -2250,8 +2469,22 @@
 
         // Initialize PWA
         let vinificatoriApp;
-        document.addEventListener('DOMContentLoaded', () => {
+        
+        // Global login functions
+        window.startCloudMode = async function() {
             vinificatoriApp = new VinificatoriFirebasePWA();
+            await vinificatoriApp.startCloudMode();
+        }
+
+        window.startOfflineMode = async function() {
+            vinificatoriApp = new VinificatoriFirebasePWA();
+            await vinificatoriApp.startOfflineMode();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Setup login button listeners
+            document.getElementById('cloudBtn').addEventListener('click', window.startCloudMode);
+            document.getElementById('offlineBtn').addEventListener('click', window.startOfflineMode);
         });
 
         // Global functions for inline handlers - ID Management
@@ -2322,4 +2555,4 @@
         });
     </script>
 </body>
-</html>
+</html> 
