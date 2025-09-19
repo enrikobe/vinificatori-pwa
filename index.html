@@ -736,28 +736,163 @@
         // Variabili globali
         let app, db, firebaseReady = false;
 
-        // Inizializza Firebase
-        function initFirebase() {
+        // Test attivo della connessione Firebase
+        async function testFirebaseConnection() {
             try {
+                console.log('Tentativo connessione Firebase...');
+                
                 // Controlla se la configurazione è personalizzata
-                if (firebaseConfig.apiKey.includes("1234567890")) {
-                    console.log("Configurazione Firebase non personalizzata - modalità offline");
-                    firebaseReady = false;
-                    return;
+                if (firebaseConfig.apiKey.includes("1234567890") || 
+                    firebaseConfig.projectId === "vinificatori-pwa") {
+                    throw new Error('Configurazione Firebase non personalizzata');
                 }
 
+                // Inizializza Firebase
                 app = firebase.initializeApp(firebaseConfig);
                 db = firebase.firestore();
+                
+                console.log('Firebase inizializzato, test connessione...');
+                
+                // Test connessione effettivo con timeout
+                const testPromise = testFirestoreConnection();
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Timeout connessione')), 8000)
+                );
+                
+                await Promise.race([testPromise, timeoutPromise]);
+                
                 firebaseReady = true;
-                console.log("Firebase inizializzato correttamente");
+                console.log('Connessione Firebase riuscita!');
+                return true;
+                
             } catch (error) {
-                console.error("Errore Firebase:", error);
+                console.error('Errore connessione Firebase:', error);
                 firebaseReady = false;
+                return false;
             }
         }
 
-        // Inizializza Firebase immediatamente
-        initFirebase();
+        async function testFirestoreConnection() {
+            // Test scrittura e lettura
+            const testRef = db.collection('_connection_test').doc('test');
+            
+            await testRef.set({
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                test: 'connection_check'
+            });
+            
+            const doc = await testRef.get();
+            if (!doc.exists) {
+                throw new Error('Test lettura fallito');
+            }
+            
+            await testRef.delete();
+        }
+
+        // Gestione fallback con scelta utente
+        function showConnectionFailure() {
+            const loginScreen = document.getElementById('loginScreen');
+            loginScreen.innerHTML = `
+                <div class="login-logo">🍇</div>
+                <div class="login-title">Connessione Cloud</div>
+                <div class="login-subtitle">Impossibile connettersi a Firebase</div>
+                
+                <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 15px; margin: 20px 0; text-align: left;">
+                    <strong>Possibili cause:</strong><br>
+                    • Configurazione Firebase non corretta<br>
+                    • Problemi di rete<br>
+                    • Firestore non abilitato<br>
+                    • Regole di sicurezza troppo restrittive
+                </div>
+                
+                <div style="display: flex; flex-direction: column; gap: 15px; max-width: 400px; width: 100%;">
+                    <button class="login-btn" onclick="retryConnection()" style="background: linear-gradient(145deg, #ffc107, #e0a800); color: #212529;">
+                        🔄 Riprova Connessione
+                    </button>
+                    <button class="login-btn" onclick="continueOffline()" style="background: linear-gradient(145deg, #6c757d, #5a6268);">
+                        📱 Continua Offline
+                    </button>
+                </div>
+                
+                <div style="margin-top: 20px; font-size: 14px; opacity: 0.8;">
+                    Modalità offline: i dati saranno salvati solo su questo dispositivo
+                </div>
+            `;
+        }
+
+        async function retryConnection() {
+            const loginScreen = document.getElementById('loginScreen');
+            loginScreen.innerHTML = `
+                <div class="login-logo">🍇</div>
+                <div class="login-title">Ritento Connessione</div>
+                <div class="loading-spinner active">
+                    <div class="spinner"></div>
+                    <div class="loading-text">Tentativo connessione Firebase...</div>
+                </div>
+            `;
+            
+            const success = await testFirebaseConnection();
+            
+            if (success) {
+                // Torna al login normale
+                showNormalLogin();
+            } else {
+                // Mostra di nuovo le opzioni
+                showConnectionFailure();
+            }
+        }
+
+        function continueOffline() {
+            firebaseReady = false;
+            showNormalLogin();
+        }
+
+        function showNormalLogin() {
+            const loginScreen = document.getElementById('loginScreen');
+            loginScreen.innerHTML = `
+                <div class="login-logo">🍇</div>
+                <div class="login-title">Vinificatori PWA</div>
+                <div class="login-subtitle">Gestione professionale vinificatori</div>
+                
+                <form class="login-form" id="loginForm">
+                    <input type="text" class="username-input" id="usernameInput" 
+                           placeholder="Inserisci il tuo nome utente" required>
+                    <button type="submit" class="login-btn">Inizia</button>
+                    <div class="login-error" id="loginError"></div>
+                </form>
+                
+                <div class="loading-spinner" id="loadingSpinner">
+                    <div class="spinner"></div>
+                    <div class="loading-text" id="loadingText">Inizializzazione...</div>
+                </div>
+                
+                <div style="margin-top: 15px; font-size: 12px; opacity: 0.7;">
+                    Modalità: ${firebaseReady ? 'Cloud (Firebase connesso)' : 'Offline (solo locale)'}
+                </div>
+            `;
+            
+            // Riattiva event listener per il form
+            setupLoginForm();
+        }
+
+        function setupLoginForm() {
+            const form = document.getElementById('loginForm');
+            const input = document.getElementById('usernameInput');
+            
+            if (form && input) {
+                form.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    startApp(input.value);
+                });
+                
+                input.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        startApp(input.value);
+                    }
+                });
+            }
+        }
 
         // Classe principale dell'app
         class VinificatoriApp {
