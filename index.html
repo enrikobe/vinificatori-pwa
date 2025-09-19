@@ -1505,21 +1505,111 @@
                 const localTimestamp = parseInt(localStorage.getItem('lastLocalUpdate') || '0');
                 const cloudTimestamp = cloudData.timestamp || 0;
                 
-                if (cloudTimestamp > localTimestamp) {
-                    console.log('Cloud data is newer, merging...');
+                console.log('Confronto timestamp:', { local: localTimestamp, cloud: cloudTimestamp });
+                
+                // Se i dati cloud sono più recenti di 10 secondi rispetto all'ultimo salvataggio locale
+                const timeDifference = cloudTimestamp - localTimestamp;
+                const isCloudNewer = timeDifference > 10000; // 10 secondi di margine
+                
+                if (isCloudNewer) {
+                    console.log('Dati cloud più recenti, merge intelligente...');
                     
-                    if (cloudData.priorities) this.priorities = cloudData.priorities;
-                    if (cloudData.activities) this.activities = cloudData.activities;
-                    if (cloudData.tasks) this.tasks = cloudData.tasks;
+                    // Merge intelligente invece di sovrascrittura completa
+                    this.intelligentMerge(cloudData);
                     
+                    // Aggiorna UI
                     this.updateHomeIndicators();
                     this.updateTodoUI();
                     if (this.currentVinificatorePage !== 'home') {
                         this.updateVinificatorePage(this.currentVinificatorePage);
                     }
                     
+                    // Aggiorna storage locale
                     this.saveAllDataLocal();
-                    this.showNotification('Dati aggiornati dal cloud', 'success');
+                    
+                    this.showNotification('Dati sincronizzati dal cloud', 'success');
+                } else {
+                    console.log('Dati locali più recenti o contemporanei, push al cloud...');
+                    // I dati locali sono più recenti, spingili al cloud
+                    this.pushToFirebase();
+                }
+            }
+
+            intelligentMerge(cloudData) {
+                // Merge delle priorità - mantieni quelle più recenti
+                if (cloudData.priorities) {
+                    Object.keys(cloudData.priorities).forEach(vinificatore => {
+                        if (!this.priorities[vinificatore] || 
+                            cloudData.prioritiesTimestamp && cloudData.prioritiesTimestamp > (this.prioritiesTimestamp || 0)) {
+                            this.priorities[vinificatore] = cloudData.priorities[vinificatore];
+                        }
+                    });
+                }
+                
+                // Merge delle attività - unisci senza perdere dati
+                if (cloudData.activities) {
+                    Object.keys(cloudData.activities).forEach(vinificatore => {
+                        if (!this.activities[vinificatore]) {
+                            this.activities[vinificatore] = cloudData.activities[vinificatore];
+                        } else {
+                            // Merge a livello di settore
+                            Object.keys(cloudData.activities[vinificatore]).forEach(sector => {
+                                if (!this.activities[vinificatore][sector]) {
+                                    this.activities[vinificatore][sector] = cloudData.activities[vinificatore][sector];
+                                } else {
+                                    // Merge a livello di azione
+                                    const cloudSector = cloudData.activities[vinificatore][sector];
+                                    const localSector = this.activities[vinificatore][sector];
+                                    
+                                    Object.keys(cloudSector).forEach(action => {
+                                        if (action === 'measurements') {
+                                            // Per le misurazioni, mantieni quelle più complete
+                                            const cloudMeasurements = cloudSector.measurements || {};
+                                            const localMeasurements = localSector.measurements || {};
+                                            
+                                            this.activities[vinificatore][sector].measurements = {
+                                                time: localMeasurements.time || cloudMeasurements.time || '',
+                                                temperature: localMeasurements.temperature || cloudMeasurements.temperature || '',
+                                                density: localMeasurements.density || cloudMeasurements.density || ''
+                                            };
+                                        } else {
+                                            // Per le azioni, usa la più recente
+                                            const cloudAction = cloudSector[action];
+                                            const localAction = localSector[action];
+                                            
+                                            if (cloudAction && (!localAction || 
+                                                new Date(cloudAction.timestamp) > new Date(localAction.timestamp || 0))) {
+                                                this.activities[vinificatore][sector][action] = cloudAction;
+                                            }
+                                        }
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }
+                
+                // Merge dei task - unisci evitando duplicati
+                if (cloudData.tasks && Array.isArray(cloudData.tasks)) {
+                    const localTaskIds = new Set(this.tasks.map(t => t.id));
+                    
+                    cloudData.tasks.forEach(cloudTask => {
+                        if (!localTaskIds.has(cloudTask.id)) {
+                            this.tasks.push(cloudTask);
+                        } else {
+                            // Aggiorna task esistente se quello cloud è più recente
+                            const localTaskIndex = this.tasks.findIndex(t => t.id === cloudTask.id);
+                            if (localTaskIndex !== -1) {
+                                const localTask = this.tasks[localTaskIndex];
+                                if (new Date(cloudTask.createdAt) > new Date(localTask.createdAt || 0)) {
+                                    this.tasks[localTaskIndex] = cloudTask;
+                                }
+                            }
+                        }
+                    });
+                    
+                    // Ordina i task per data di creazione
+                    this.tasks.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
                 }
             }
 
@@ -1532,21 +1622,29 @@
                 try {
                     const docRef = window.db.collection('vinificatori_data').doc(this.userId);
                     
+                    // Crea timestamp preciso per tracking modifiche
+                    const currentTimestamp = Date.now();
+                    
                     const dataToSync = {
                         priorities: this.priorities,
                         activities: this.activities,
                         tasks: this.tasks,
-                        timestamp: Date.now(),
+                        timestamp: currentTimestamp,
                         lastDevice: navigator.userAgent.substr(0, 50),
                         userId: this.userId,
-                        version: '2.5'
+                        version: '2.5',
+                        // Timestamp specifici per tracking granulare
+                        prioritiesTimestamp: this.prioritiesTimestamp || currentTimestamp,
+                        activitiesTimestamp: this.activitiesTimestamp || currentTimestamp,
+                        tasksTimestamp: this.tasksTimestamp || currentTimestamp
                     };
                     
-                    await docRef.set(dataToSync, { merge: true });
+                    // Usa merge invece di set per preservare dati non conflittuali
+                    await docRef.set(dataToSync, { merge: false });
                     
-                    localStorage.setItem('lastLocalUpdate', dataToSync.timestamp.toString());
+                    localStorage.setItem('lastLocalUpdate', currentTimestamp.toString());
                     this.lastSync = new Date();
-                    console.log('Dati sincronizzati su Firebase');
+                    console.log('Dati sincronizzati su Firebase con timestamp:', currentTimestamp);
                     
                 } catch (error) {
                     console.error('Errore push Firebase:', error);
@@ -1554,6 +1652,113 @@
                 } finally {
                     this.syncInProgress = false;
                     this.updateSyncStatus();
+                }
+            }
+
+            // Override dei metodi di salvataggio per tracking timestamp
+            togglePriority(vinificatore) {
+                if (this.priorities[vinificatore]) {
+                    delete this.priorities[vinificatore];
+                } else {
+                    const usedPriorities = Object.values(this.priorities);
+                    let nextPriority = 1;
+                    while (usedPriorities.includes(nextPriority) && nextPriority <= 10) {
+                        nextPriority++;
+                    }
+                    
+                    if (nextPriority <= 10) {
+                        this.priorities[vinificatore] = nextPriority;
+                    } else {
+                        this.showNotification('Massimo 10 priorità', 'warning');
+                        return;
+                    }
+                }
+                
+                // Timestamp per tracking modifiche priorità
+                this.prioritiesTimestamp = Date.now();
+                this.debouncedSave();
+                this.updateHomeIndicators();
+            }
+
+            toggleAction(vinificatore, sector, action, buttonEl) {
+                if (!this.activities[vinificatore]) this.activities[vinificatore] = {};
+                if (!this.activities[vinificatore][sector]) this.activities[vinificatore][sector] = {};
+                
+                const currentData = this.activities[vinificatore][sector][action];
+                const isCurrentlyActive = currentData ? currentData.active : false;
+                
+                if (isCurrentlyActive) {
+                    delete this.activities[vinificatore][sector][action];
+                } else {
+                    this.activities[vinificatore][sector][action] = {
+                        active: true,
+                        priority: this.getNextActionPriority(vinificatore, sector),
+                        timestamp: new Date().toISOString(),
+                        duration: currentData ? currentData.duration : null
+                    };
+                }
+                
+                buttonEl.classList.add('pulse');
+                setTimeout(() => buttonEl.classList.remove('pulse'), 300);
+                
+                // Timestamp per tracking modifiche attività
+                this.activitiesTimestamp = Date.now();
+                this.debouncedSave();
+                this.updateVinificatorePage(vinificatore);
+                this.updateHomeIndicators();
+            }
+
+            addTask() {
+                const input = document.getElementById('taskInput');
+                const text = input.value.trim();
+                
+                if (!text) return;
+                
+                const task = {
+                    id: Date.now().toString(),
+                    text: text,
+                    completed: false,
+                    createdAt: new Date().toISOString(),
+                    userId: this.userId,
+                    synced: false
+                };
+                
+                this.tasks.unshift(task);
+                input.value = '';
+                
+                // Timestamp per tracking modifiche task
+                this.tasksTimestamp = Date.now();
+                this.saveAllData();
+                this.updateTodoUI();
+            }
+
+            // Metodo per forzare sincronizzazione bidirezionale
+            async forceBidirectionalSync() {
+                if (!this.firebaseReady || this.isOfflineMode) {
+                    this.showNotification('Sincronizzazione Firebase non disponibile', 'warning');
+                    return;
+                }
+                
+                console.log('Inizio sincronizzazione bidirezionale forzata...');
+                
+                try {
+                    // Prima leggi i dati cloud più recenti
+                    const docRef = window.db.collection('vinificatori_data').doc(this.userId);
+                    const snapshot = await docRef.get();
+                    
+                    if (snapshot.exists) {
+                        const cloudData = snapshot.data();
+                        console.log('Dati cloud trovati, merge intelligente...');
+                        this.intelligentMerge(cloudData);
+                    }
+                    
+                    // Poi spinge i dati locali aggiornati
+                    await this.pushToFirebase();
+                    
+                    this.showNotification('Sincronizzazione bidirezionale completata', 'success');
+                } catch (error) {
+                    console.error('Errore sincronizzazione bidirezionale:', error);
+                    this.showNotification('Errore durante la sincronizzazione', 'error');
                 }
             }
 
@@ -2429,8 +2634,8 @@
                     return;
                 }
                 
-                await this.pushToFirebase();
-                this.showNotification('Sincronizzazione Firebase completata', 'success');
+                // Usa la nuova sincronizzazione bidirezionale
+                await this.forceBidirectionalSync();
             }
 
             debouncedSave() {
