@@ -21,31 +21,133 @@
     
     <!-- PWA Setup Script -->
     <script>
-        // Configurazione Firebase
+        // Configurazione Firebase con diagnostica avanzata
         const firebaseConfig = {
-            "apiKey": "AIzaSyBHxGHYSGCgMVEcE7r9LPQC7w1234567890",
-            "authDomain": "vinificatori-pwa.firebaseapp.com",
-            "projectId": "vinificatori-pwa",
-            "storageBucket": "vinificatori-pwa.firebasestorage.app",
-            "messagingSenderId": "643215569794",
-            "appId": "1:643215569794:web:c9545d0a2e9dcdea1e159b"
+            // SOSTITUISCI QUESTI VALORI CON LA TUA CONFIGURAZIONE FIREBASE REALE
+            "apiKey": "AIzaSyAiTcRRpKzWyLU_7hT2g9QlFAgtX5H1JHQ",
+            "authDomain": "il-tuo-progetto.firebaseapp.com",
+            "projectId": "il-tuo-progetto-id",
+            "storageBucket": "il-tuo-progetto.appspot.com",  // CORRETTO: deve finire con .appspot.com
+            "messagingSenderId": "123456789",
+            "appId": "1:123456789:web:abcdef123456"
         };
 
-        // Inizializza Firebase
+        // Inizializza Firebase con diagnostica completa
         let firebaseApp, db;
         window.firebaseReady = false;
 
-        try {
-            firebaseApp = firebase.initializeApp(firebaseConfig);
-            db = firebase.firestore();
-            window.firebaseReady = true;
-            window.firebaseApp = firebaseApp;
-            window.db = db;
-            console.log('Firebase inizializzato con successo');
-        } catch (error) {
-            console.error('Errore inizializzazione Firebase:', error);
-            window.firebaseReady = false;
+        async function initializeFirebase() {
+            console.log('🔄 Inizio inizializzazione Firebase...');
+            console.log('📋 Configurazione:', {
+                apiKey: firebaseConfig.apiKey.substring(0, 10) + '...',
+                authDomain: firebaseConfig.authDomain,
+                projectId: firebaseConfig.projectId
+            });
+
+            try {
+                // Controlla se la configurazione è stata personalizzata
+                if (firebaseConfig.apiKey === "LA_TUA_API_KEY_FIREBASE") {
+                    console.warn('⚠️ Configurazione Firebase non personalizzata - Modalità offline');
+                    window.firebaseReady = false;
+                    return;
+                }
+
+                // Controlla se Firebase SDK è caricato
+                if (typeof firebase === 'undefined') {
+                    throw new Error('Firebase SDK non caricato');
+                }
+
+                console.log('📦 Firebase SDK caricato correttamente');
+
+                // Inizializza Firebase
+                firebaseApp = firebase.initializeApp(firebaseConfig);
+                console.log('✅ Firebase app inizializzata');
+
+                // Inizializza Firestore
+                db = firebase.firestore();
+                console.log('✅ Firestore inizializzato');
+
+                // Test connessione base
+                console.log('🔍 Test connessione Firestore...');
+                await db.enableNetwork();
+                console.log('✅ Rete Firestore abilitata');
+
+                // Test scrittura/lettura
+                const testRef = db.collection('_test_connection').doc('test');
+                await testRef.set({
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    test: 'connection_test'
+                });
+                console.log('✅ Test scrittura riuscito');
+
+                const testDoc = await testRef.get();
+                if (testDoc.exists) {
+                    console.log('✅ Test lettura riuscito');
+                    // Pulisci il documento di test
+                    await testRef.delete();
+                } else {
+                    throw new Error('Documento test non trovato dopo la scrittura');
+                }
+
+                window.firebaseReady = true;
+                window.firebaseApp = firebaseApp;
+                window.db = db;
+                console.log('🎉 Firebase completamente inizializzato e testato');
+                
+            } catch (error) {
+                console.error('❌ Errore inizializzazione Firebase:', error);
+                window.firebaseReady = false;
+                
+                // Diagnostica dettagliata dell'errore
+                console.group('🔍 Diagnostica errore Firebase:');
+                console.log('Tipo errore:', error.name);
+                console.log('Messaggio:', error.message);
+                console.log('Codice:', error.code);
+                
+                if (error.code) {
+                    switch (error.code) {
+                        case 'auth/invalid-api-key':
+                            console.error('🔑 API Key non valida - Controlla la chiave nel progetto Firebase');
+                            break;
+                        case 'app/invalid-app-argument':
+                            console.error('⚙️ Configurazione app non valida - Verifica projectId, authDomain, etc.');
+                            break;
+                        case 'permission-denied':
+                            console.error('🚫 Permessi negati - Controlla le regole di sicurezza Firestore');
+                            break;
+                        case 'unavailable':
+                            console.error('🌐 Servizio non disponibile - Problemi di rete o server Firebase');
+                            break;
+                        default:
+                            console.error('❓ Errore sconosciuto:', error.code);
+                    }
+                }
+                
+                console.log('Stack trace:', error.stack);
+                console.groupEnd();
+
+                // Suggerimenti per la risoluzione
+                console.group('💡 Suggerimenti per la risoluzione:');
+                console.log('1. Verifica che tutti i campi della configurazione siano corretti');
+                console.log('2. Controlla che Firestore sia abilitato nel progetto Firebase');
+                console.log('3. Verifica le regole di sicurezza Firestore (inizialmente usa: allow read, write: if true;)');
+                console.log('4. Controlla la connessione internet');
+                console.log('5. Verifica che il dominio sia autorizzato nelle impostazioni Firebase');
+                console.groupEnd();
+            }
         }
+
+        // Inizializza Firebase al caricamento con timeout
+        const initTimeout = setTimeout(() => {
+            if (!window.firebaseReady) {
+                console.warn('⏰ Timeout inizializzazione Firebase - Passaggio a modalità offline');
+                window.firebaseReady = false;
+            }
+        }, 10000); // 10 secondi di timeout
+
+        initializeFirebase().finally(() => {
+            clearTimeout(initTimeout);
+        });
 
         // Manifest dinamico
         const manifestData = {
@@ -1300,10 +1402,20 @@
             }
 
             async checkFirebaseStatus() {
-                if (this.firebaseReady && window.db) {
-                    this.showFirebaseStatus('success');
-                    await this.startFirebaseSync();
-                } else {
+                try {
+                    if (this.firebaseReady && window.db) {
+                        // Test effettivo della connessione
+                        const testDoc = window.db.collection('test').doc('connection');
+                        await testDoc.get();
+                        
+                        this.showFirebaseStatus('success');
+                        await this.startFirebaseSync();
+                    } else {
+                        throw new Error('Firebase non inizializzato o non disponibile');
+                    }
+                } catch (error) {
+                    console.error('Errore test connessione Firebase:', error);
+                    this.firebaseReady = false;
                     this.showFirebaseStatus('error');
                     this.isDataLoaded = true;
                 }
