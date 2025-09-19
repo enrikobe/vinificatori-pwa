@@ -175,7 +175,7 @@
         // Global variables
         let vinificatoriApp;
 
-        // Funzione di avvio semplificata
+        // Funzione di avvio semplificata - FIXED
         async function startApp(username) {
             if (!username || username.trim() === '') {
                 document.getElementById('loginError').textContent = 'Inserisci un nome utente valido';
@@ -186,12 +186,15 @@
             document.getElementById('loadingSpinner').classList.add('active');
             document.getElementById('loginForm').style.display = 'none';
             
-            // Controllo automatico Firebase
-            let isOnline = window.firebaseReady;
+            // Aspetta che Firebase sia completamente inizializzato
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Controllo stato Firebase DOPO l'inizializzazione
+            let isOnline = window.firebaseReady === true;
             
             if (isOnline) {
-                document.getElementById('loadingText').textContent = 'Connessione cloud in corso...';
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                document.getElementById('loadingText').textContent = 'Connessione cloud rilevata...';
+                await new Promise(resolve => setTimeout(resolve, 800));
             } else {
                 document.getElementById('loadingText').textContent = 'Modalità offline - Dati locali';
                 await new Promise(resolve => setTimeout(resolve, 800));
@@ -2554,6 +2557,19 @@
                                         return actionStr;
                                     }).join(', ');
                                     report += `  ${sector.emoji} ${sector.name}: ${actionsText}\n`;
+                                }
+
+                                // FIXED: Mostra anche le attività disattivate di recente nel report
+                                const recentlyDeactivated = Object.entries(sectorActivities)
+                                    .filter(([action, data]) => {
+                                        if (action === 'measurements' || !data) return false;
+                                        return data.active === false && data.deactivatedAt &&
+                                               (Date.now() - new Date(data.deactivatedAt).getTime()) < 3600000; // Ultime ora
+                                    })
+                                    .map(([action, data]) => action);
+
+                                if (recentlyDeactivated.length > 0) {
+                                    report += `  ${sector.emoji} ${sector.name} - Disattivate: ${recentlyDeactivated.join(', ')}\n`;
                                 }
                             }
                         });
