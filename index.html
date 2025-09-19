@@ -1162,14 +1162,14 @@
                 
                 page.innerHTML = `
                     <div class="page-header">
-                        <button class="back-btn" onclick="app.goHome()">← Indietro</button>
+                        <button class="back-btn">← Indietro</button>
                         <div class="page-title">${vinificatore}</div>
                         <div style="width: 100px;"></div>
                     </div>
                     <div class="sectors-container">
                         ${this.sectors.map(sector => `
                             <div class="sector" data-sector="${sector.key}">
-                                <div class="sector-header" onclick="app.showTimePopup('${vinificatore}', '${sector.key}')">
+                                <div class="sector-header">
                                     <span>${sector.emoji} ${sector.name}</span>
                                     <span class="sector-time-badge" data-time="${sector.key}"></span>
                                 </div>
@@ -1178,9 +1178,7 @@
                                         <button class="action-btn" 
                                                 data-vinificatore="${vinificatore}"
                                                 data-sector="${sector.key}" 
-                                                data-action="${action}"
-                                                onclick="app.toggleAction('${vinificatore}', '${sector.key}', '${action}', this)"
-                                                ${action === 'Rimontaggio' ? 'oncontextmenu="app.showDurationPopup(\'' + vinificatore + '\', \'' + sector.key + '\', \'' + action + '\'); return false;"' : ''}>
+                                                data-action="${action}">
                                             ${action}
                                         </button>
                                     `).join('')}
@@ -1192,8 +1190,7 @@
                                                data-vinificatore="${vinificatore}"
                                                data-sector="${sector.key}"
                                                data-measurement="temperature"
-                                               step="0.1"
-                                               onchange="app.saveMeasurement('${vinificatore}', '${sector.key}', 'temperature', this.value)">
+                                               step="0.1">
                                     </div>
                                     <div class="measurement-input">
                                         <div class="measurement-label">Densità (g/L)</div>
@@ -1201,8 +1198,7 @@
                                                data-vinificatore="${vinificatore}"
                                                data-sector="${sector.key}"
                                                data-measurement="density"
-                                               step="0.1"
-                                               onchange="app.saveMeasurement('${vinificatore}', '${sector.key}', 'density', this.value)">
+                                               step="0.1">
                                     </div>
                                 </div>
                             </div>
@@ -1210,7 +1206,66 @@
                     </div>
                 `;
                 
+                // Aggiungi event listeners dopo aver creato gli elementi
+                this.setupVinificatorePageEvents(page, vinificatore);
+                
                 return page;
+            }
+
+            setupVinificatorePageEvents(page, vinificatore) {
+                // Back button
+                const backBtn = page.querySelector('.back-btn');
+                backBtn.addEventListener('click', () => this.goHome());
+                
+                // Sector headers (for time popup)
+                page.querySelectorAll('.sector-header').forEach(header => {
+                    const sector = header.closest('.sector').dataset.sector;
+                    header.addEventListener('click', () => this.showTimePopup(vinificatore, sector));
+                });
+                
+                // Action buttons
+                page.querySelectorAll('.action-btn').forEach(btn => {
+                    const sector = btn.dataset.sector;
+                    const action = btn.dataset.action;
+                    
+                    // Click event
+                    btn.addEventListener('click', () => this.toggleAction(vinificatore, sector, action, btn));
+                    
+                    // Long press for Rimontaggio (context menu)
+                    if (action === 'Rimontaggio') {
+                        btn.addEventListener('contextmenu', (e) => {
+                            e.preventDefault();
+                            this.showDurationPopup(vinificatore, sector, action);
+                        });
+                        
+                        // Touch long press for mobile
+                        let longPressTimer;
+                        btn.addEventListener('touchstart', (e) => {
+                            longPressTimer = setTimeout(() => {
+                                if (navigator.vibrate) navigator.vibrate(50);
+                                this.showDurationPopup(vinificatore, sector, action);
+                            }, 800);
+                        });
+                        
+                        btn.addEventListener('touchend', () => {
+                            if (longPressTimer) clearTimeout(longPressTimer);
+                        });
+                        
+                        btn.addEventListener('touchcancel', () => {
+                            if (longPressTimer) clearTimeout(longPressTimer);
+                        });
+                    }
+                });
+                
+                // Measurement inputs
+                page.querySelectorAll('.measurement-field').forEach(input => {
+                    const sector = input.dataset.sector;
+                    const measurement = input.dataset.measurement;
+                    
+                    input.addEventListener('change', () => {
+                        this.saveMeasurement(vinificatore, sector, measurement, input.value);
+                    });
+                });
             }
 
             goHome() {
@@ -1709,7 +1764,7 @@
             if (window.app) window.app.addTask();
         }
 
-        // App initialization
+        // App initialization con test connessione
         async function startApp(username) {
             if (!username || username.trim() === '') {
                 document.getElementById('loginError').textContent = 'Inserisci un nome utente valido';
@@ -1720,19 +1775,10 @@
             document.getElementById('loadingSpinner').classList.add('active');
             document.getElementById('loginForm').style.display = 'none';
             
-            // Show loading status
             const loadingText = document.getElementById('loadingText');
-            loadingText.textContent = 'Inizializzazione...';
+            loadingText.textContent = firebaseReady ? 'Connessione cloud attiva...' : 'Modalità offline...';
             
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            if (firebaseReady) {
-                loadingText.textContent = 'Connessione cloud rilevata...';
-                await new Promise(resolve => setTimeout(resolve, 800));
-            } else {
-                loadingText.textContent = 'Modalità offline attiva...';
-                await new Promise(resolve => setTimeout(resolve, 800));
-            }
+            await new Promise(resolve => setTimeout(resolve, 800));
             
             // Initialize app
             window.app = new VinificatoriApp(username.trim());
@@ -1742,22 +1788,18 @@
             document.getElementById('loginScreen').classList.add('hidden');
         }
 
-        // Login form handler
-        document.addEventListener('DOMContentLoaded', () => {
-            const form = document.getElementById('loginForm');
-            const input = document.getElementById('usernameInput');
+        // Inizializzazione al caricamento pagina
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Test connessione Firebase all'avvio
+            const connectionSuccess = await testFirebaseConnection();
             
-            form.addEventListener('submit', (e) => {
-                e.preventDefault();
-                startApp(input.value);
-            });
-            
-            input.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    startApp(input.value);
-                }
-            });
+            if (connectionSuccess) {
+                // Connessione riuscita, mostra login normale
+                showNormalLogin();
+            } else {
+                // Connessione fallita, mostra opzioni
+                showConnectionFailure();
+            }
         });
     </script>
 </body>
