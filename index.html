@@ -1,1732 +1,4 @@
-// FIXED: Long press per pulsanti azione Rimontaggio
-                document.addEventListener('touchstart', (e) => {
-                    const actionBtn = e.target.closest('.action-btn');
-                    if (actionBtn && actionBtn.dataset.action === 'Rimontaggio') {
-                        e.preventDefault();
-                        this.startLongPress(actionBtn, 'duration');
-                    }
-                }, { passive: false });
-
-                document.addEventListener('touchend', (e) => {
-                    const actionBtn = e.target.closest('.action-btn');
-                    if (actionBtn && actionBtn.dataset.action === 'Rimontaggio') {
-                        e.preventDefault();
-                        if (this.isLongPressing) {
-                            this.cancelLongPress();
-                            return;
-                        }
-                        this.cancelLongPress();
-                    }
-                }, { passive: false });
-
-                document.addEventListener('touchcancel', () => this.cancelLongPress());
-
-                // Desktop mouse events per long press sui pulsanti azione
-                document.addEventListener('mousedown', (e) => {
-                    const actionBtn = e.target.closest('.action-btn');
-                    if (actionBtn && actionBtn.dataset.action === 'Rimontaggio') {
-                        this.startLongPress(actionBtn, 'duration');
-                    }
-                });
-
-                document.addEventListener('mouseup', (e) => {
-                    const actionBtn = e.target.closest('.action-btn');
-                    if (actionBtn && actionBtn.dataset.action === 'Rimontaggio') {
-                        this.cancelLongPress();
-                    }
-                });
-
-                // Todo events
-                document.getElementById('taskInput').addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') {
-                        this.addTask();
-                    }
-                });
-
-                // Popup events
-                document.getElementById('popupCancel').addEventListener('click', () => this.closePopup());
-                document.getElementById('popupConfirm').addEventListener('click', () => this.confirmPopup());
-                
-                document.getElementById('popupOverlay').addEventListener('click', (e) => {
-                    if (e.target === document.getElementById('popupOverlay')) {
-                        this.closePopup();
-                    }
-                });
-
-                document.getElementById('timeInput').addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') this.confirmPopup();
-                });
-                
-                document.getElementById('durationInput').addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') this.confirmPopup();
-                });
-            }
-
-            startLongPress(button, type) {
-                this.cancelLongPress();
-                this.isLongPressing = false;
-                
-                this.longPressTimer = setTimeout(() => {
-                    this.isLongPressing = true;
-                    
-                    if (navigator.vibrate) navigator.vibrate(50);
-                    
-                    button.classList.add('pulse');
-                    setTimeout(() => button.classList.remove('pulse'), 500);
-                    
-                    if (type === 'priority') {
-                        const vinificatore = button.dataset.vinificatore;
-                        if (vinificatore) {
-                            this.togglePriority(vinificatore);
-                        }
-                    } else if (type === 'duration') {
-                        // Long press su rimontaggio per inserire durata
-                        const vinificatore = button.dataset.vinificatore;
-                        const sector = button.dataset.sector;
-                        const action = button.dataset.action;
-                        
-                        if (vinificatore && sector && action) {
-                            this.showDurationPopup(vinificatore, sector, action);
-                        }
-                    }
-                }, this.longPressDelay);
-            }
-
-            cancelLongPress() {
-                if (this.longPressTimer) {
-                    clearTimeout(this.longPressTimer);
-                    this.longPressTimer = null;
-                }
-                setTimeout(() => this.isLongPressing = false, 50);
-            }
-
-            togglePriority(vinificatore) {
-                if (this.priorities[vinificatore]) {
-                    delete this.priorities[vinificatore];
-                } else {
-                    const usedPriorities = Object.values(this.priorities);
-                    let nextPriority = 1;
-                    while (usedPriorities.includes(nextPriority) && nextPriority <= 10) {
-                        nextPriority++;
-                    }
-                    
-                    if (nextPriority <= 10) {
-                        this.priorities[vinificatore] = nextPriority;
-                    } else {
-                        this.showNotification('Massimo 10 priorità', 'warning');
-                        return;
-                    }
-                }
-                
-                this.debouncedSave();
-                this.updateHomeIndicators();
-            }
-
-            updateHomeIndicators() {
-                for (let i = 1; i <= 10; i++) {
-                    const button = document.querySelector(`[data-vinificatore="V${i.toString().padStart(2, '0')}"]`);
-                    if (button) {
-                        const vinificatore = `V${i.toString().padStart(2, '0')}`;
-                        
-                        button.classList.remove('has-activities', 'has-priority');
-                        const existingBadge = button.querySelector('.priority-badge');
-                        if (existingBadge) existingBadge.remove();
-                        
-                        if (this.priorities[vinificatore]) {
-                            button.classList.add('has-priority');
-                            const badge = document.createElement('span');
-                            badge.className = 'priority-badge';
-                            badge.textContent = this.priorities[vinificatore];
-                            button.appendChild(badge);
-                        }
-                        
-                        if (this.hasActivities(vinificatore)) {
-                            button.classList.add('has-activities');
-                        }
-                    }
-                }
-            }
-
-            hasActivities(vinificatore) {
-                if (!this.activities[vinificatore]) return false;
-                
-                for (const sector of this.sectors) {
-                    if (this.activities[vinificatore][sector.key]) {
-                        const sectorActions = this.activities[vinificatore][sector.key];
-                        if (Object.values(sectorActions).some(data => data && data.active)) {
-                            return true;
-                        }
-                    }
-                }
-                return false;
-            }
-
-            handleHomeButtonClick(button) {
-                if (button.id === 'resetBtn') {
-                    this.resetAll();
-                } else if (button.id === 'shareBtn') {
-                    this.shareReport();
-                } else if (button.dataset.vinificatore) {
-                    this.openVinificatorePage(button.dataset.vinificatore);
-                }
-            }
-
-            openVinificatorePage(vinificatore) {
-                document.getElementById('homePage').style.display = 'none';
-                
-                let page = document.getElementById(`page-${vinificatore}`);
-                if (!page) {
-                    page = this.createVinificatorePage(vinificatore);
-                    document.getElementById('vinificatoriPage').appendChild(page);
-                }
-                
-                page.style.display = 'flex';
-                page.classList.add('active', 'fade-in');
-                
-                this.currentVinificatorePage = vinificatore;
-                this.updateVinificatorePage(vinificatore);
-            }
-
-            createVinificatorePage(vinificatore) {
-                const page = document.createElement('div');
-                page.id = `page-${vinificatore}`;
-                page.className = 'vinificatore-page';
-                
-                page.innerHTML = `
-                    <div class="vinificatore-header-row">
-                        <button class="back-btn" onclick="vinificatoriApp.goHome()">← Indietro</button>
-                        <div class="vinificatore-header">${vinificatore}</div>
-                        <div style="width: 100px;"></div>
-                    </div>
-                    <div class="sectors-container">
-                        ${this.sectors.map(sector => `
-                            <div class="sector" data-sector="${sector.key}">
-                                <div class="sector-header" onclick="vinificatoriApp.showTimePopup('${vinificatore}', '${sector.key}')">
-                                    <span class="sector-emoji">${sector.emoji}</span>
-                                    <span class="sector-name">${sector.name}</span>
-                                    <span class="sector-time-badge" data-time="${sector.key}"></span>
-                                </div>
-                                <div class="actions-row">
-                                    ${this.actions.map(action => `
-                                        <button class="action-btn" 
-                                                data-vinificatore="${vinificatore}"
-                                                data-sector="${sector.key}" 
-                                                data-action="${action}"
-                                                onclick="vinificatoriApp.toggleAction('${vinificatore}', '${sector.key}', '${action}', this)">
-                                            <span class="action-text">${action}</span>
-                                        </button>
-                                    `).join('')}
-                                </div>
-                                <div class="measurements-row">
-                                    <div class="measurement-input">
-                                        <div class="measurement-label">Temperatura (°C)</div>
-                                        <input type="number" class="measurement-field" 
-                                               placeholder="°C"
-                                               data-vinificatore="${vinificatore}"
-                                               data-sector="${sector.key}"
-                                               data-measurement="temperature"
-                                               min="0" max="50" step="0.1"
-                                               onchange="vinificatoriApp.saveMeasurement('${vinificatore}', '${sector.key}', 'temperature', this.value)">
-                                    </div>
-                                    <div class="measurement-input">
-                                        <div class="measurement-label">Densità (g/L)</div>
-                                        <input type="number" class="measurement-field" 
-                                               placeholder="g/L"
-                                               data-vinificatore="${vinificatore}"
-                                               data-sector="${sector.key}"
-                                               data-measurement="density"
-                                               min="0" max="2000" step="0.1"
-                                               onchange="vinificatoriApp.saveMeasurement('${vinificatore}', '${sector.key}', 'density', this.value)">
-                                    </div>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-                
-                return page;
-            }
-
-            goHome() {
-                document.querySelectorAll('.vinificatore-page').forEach(page => {
-                    page.style.display = 'none';
-                    page.classList.remove('active');
-                });
-                
-                document.getElementById('homePage').style.display = 'block';
-                this.currentVinificatorePage = 'home';
-                this.updateHomeIndicators();
-            }
-
-            showTimePopup(vinificatore, sector) {
-                this.currentPopupType = 'time';
-                this.pendingAction = { vinificatore, sector };
-                
-                const measurements = this.getSectorMeasurements(vinificatore, sector);
-                const sectorName = this.sectors.find(s => s.key === sector)?.name || sector;
-                
-                this.showPopup(`Orario ${sectorName}`, measurements.time, 'time');
-            }
-
-            showDurationPopup(vinificatore, sector, action) {
-                this.currentPopupType = 'duration';
-                this.pendingAction = { vinificatore, sector, action };
-                
-                const actionData = this.getActionData(vinificatore, sector, action);
-                const currentDuration = actionData ? actionData.duration || '' : '';
-                
-                this.showPopup(`Durata ${action} (minuti)`, currentDuration, 'duration');
-            }
-
-            toggleAction(vinificatore, sector, action, buttonEl) {
-                if (!this.activities[vinificatore]) this.activities[vinificatore] = {};
-                if (!this.activities[vinificatore][sector]) this.activities[vinificatore][sector] = {};
-                
-                const currentData = this.activities[vinificatore][sector][action];
-                const isCurrentlyActive = currentData ? currentData.active : false;
-                
-                if (isCurrentlyActive) {
-                    delete this.activities[vinificatore][sector][action];
-                } else {
-                    this.activities[vinificatore][sector][action] = {
-                        active: true,
-                        priority: this.getNextActionPriority(vinificatore, sector),
-                        timestamp: new Date().toISOString(),
-                        duration: currentData ? currentData.duration : null
-                    };
-                }
-                
-                buttonEl.classList.add('pulse');
-                setTimeout(() => buttonEl.classList.remove('pulse'), 300);
-                
-                this.debouncedSave();
-                this.updateVinificatorePage(vinificatore);
-                this.updateHomeIndicators(); // FIXED: Aggiorna le priorità quando si seleziona/deseleziona un'attività
-            }
-
-            getNextActionPriority(vinificatore, sector) {
-                if (!this.activities[vinificatore] || !this.activities[vinificatore][sector]) {
-                    return 1;
-                }
-                
-                const sectorActions = this.activities[vinificatore][sector];
-                const usedPriorities = Object.entries(sectorActions)
-                    .filter(([action, data]) => action !== 'measurements' && data?.active && data.priority)
-                    .map(([action, data]) => data.priority);
-                
-                let nextPriority = 1;
-                while (usedPriorities.includes(nextPriority)) {
-                    nextPriority++;
-                }
-                
-                return nextPriority;
-            }
-
-            updateVinificatorePage(vinificatore) {
-                const page = document.getElementById(`page-${vinificatore}`);
-                if (!page) return;
-                
-                this.sectors.forEach(sector => {
-                    const sectorEl = page.querySelector(`[data-sector="${sector.key}"]`);
-                    if (!sectorEl) return;
-                    
-                    const actionButtons = sectorEl.querySelectorAll('.action-btn');
-                    const tempInput = sectorEl.querySelector(`[data-measurement="temperature"]`);
-                    const densityInput = sectorEl.querySelector(`[data-measurement="density"]`);
-                    const timeBadge = sectorEl.querySelector(`[data-time="${sector.key}"]`);
-                    
-                    // Update measurements
-                    const measurements = this.getSectorMeasurements(vinificatore, sector.key);
-                    if (tempInput) tempInput.value = measurements.temperature || '';
-                    if (densityInput) densityInput.value = measurements.density || '';
-                    
-                    if (timeBadge) {
-                        if (measurements.time) {
-                            timeBadge.textContent = measurements.time;
-                            timeBadge.classList.add('visible');
-                        } else {
-                            timeBadge.textContent = '';
-                            timeBadge.classList.remove('visible');
-                        }
-                    }
-                    
-                    // Update action buttons
-                    actionButtons.forEach(btn => {
-                        const action = btn.dataset.action;
-                        const isActive = this.isActionActive(vinificatore, sector.key, action);
-                        const actionData = this.getActionData(vinificatore, sector.key, action);
-                        
-                        btn.classList.toggle('active', isActive);
-                        
-                        // Remove existing badges
-                        const existingBadge = btn.querySelector('.action-badge');
-                        const existingDurationBadge = btn.querySelector('.duration-badge');
-                        if (existingBadge) existingBadge.remove();
-                        if (existingDurationBadge) existingDurationBadge.remove();
-                        
-                        // Add priority badge if active
-                        if (isActive && actionData?.priority) {
-                            const badge = document.createElement('span');
-                            badge.className = 'action-badge';
-                            badge.textContent = actionData.priority;
-                            btn.appendChild(badge);
-                        }
-                        
-                        // Add duration badge for Rimontaggio if active and has duration
-                        if (isActive && action === 'Rimontaggio' && actionData?.duration) {
-                            const durationBadge = document.createElement('span');
-                            durationBadge.className = 'duration-badge';
-                            durationBadge.textContent = `${actionData.duration}m`;
-                            btn.appendChild(durationBadge);
-                        }
-                    });
-                });
-            }
-
-            isActionActive(vinificatore, sector, action) {
-                const actionData = this.getActionData(vinificatore, sector, action);
-                return actionData ? actionData.active : false;
-            }
-
-            getActionData(vinificatore, sector, action) {
-                return this.activities[vinificatore]?.[sector]?.[action];
-            }
-
-            getSectorMeasurements(vinificatore, sector) {
-                if (!this.activities[vinificatore] || !this.activities[vinificatore][sector]) {
-                    return { time: '', temperature: '', density: '' };
-                }
-                return this.activities[vinificatore][sector].measurements || { time: '', temperature: '', density: '' };
-            }
-
-            saveMeasurement(vinificatore, sector, measurementType, value) {
-                if (!this.activities[vinificatore]) this.activities[vinificatore] = {};
-                if (!this.activities[vinificatore][sector]) this.activities[vinificatore][sector] = {};
-                if (!this.activities[vinificatore][sector].measurements) {
-                    this.activities[vinificatore][sector].measurements = {};
-                }
-                
-                this.activities[vinificatore][sector].measurements[measurementType] = value;
-                this.debouncedSave();
-            }
-
-            // Todo Methods
-            addTask() {
-                const input = document.getElementById('taskInput');
-                const text = input.value.trim();
-                
-                if (!text) return;
-                
-                const task = {
-                    id: Date.now().toString(),
-                    text: text,
-                    completed: false,
-                    createdAt: new Date().toISOString(),
-                    userId: this.userId,
-                    synced: false
-                };
-                
-                this.tasks.unshift(task);
-                input.value = '';
-                
-                this.saveAllData();
-                this.updateTodoUI();
-            }
-
-            toggleTask(id) {
-                const task = this.tasks.find(t => t.id === id);
-                if (task) {
-                    task.completed = !task.completed;
-                    task.synced = false;
-                    this.saveAllData();
-                    this.updateTodoUI();
-                }
-            }
-
-            deleteTask(id) {
-                this.tasks = this.tasks.filter(t => t.id !== id);
-                this.saveAllData();
-                this.updateTodoUI();
-            }
-
-            updateTodoUI() {
-                const container = document.getElementById('tasksContainer');
-                const emptyState = document.getElementById('emptyState');
-                
-                if (this.tasks.length === 0) {
-                    container.innerHTML = '';
-                    container.appendChild(emptyState);
-                } else {
-                    container.innerHTML = '';
-                    
-                    this.tasks.forEach(task => {
-                        const taskElement = this.createTaskElement(task);
-                        container.appendChild(taskElement);
-                    });
-                }
-            }
-
-            createTaskElement(task) {
-                const div = document.createElement('div');
-                div.className = `task-item ${task.completed ? 'completed' : ''}`;
-                
-                const createdAt = new Date(task.createdAt);
-                const timeStr = createdAt.toLocaleString('it-IT', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
-                
-                div.innerHTML = `
-                    <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''} 
-                           onchange="vinificatoriApp.toggleTask('${task.id}')">
-                    <span class="task-text">${this.escapeHtml(task.text)}</span>
-                    <span class="task-time">${timeStr}</span>
-                    <button class="delete-btn" onclick="vinificatoriApp.deleteTask('${task.id}')">🗑️</button>
-                `;
-                
-                return div;
-            }
-
-            escapeHtml(text) {
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
-            }
-
-            // Popup Methods
-            showPopup(title, value = '', type = 'report') {
-                const popup = document.getElementById('popupOverlay');
-                const titleEl = document.getElementById('popupTitle');
-                const reportContent = document.getElementById('reportContent');
-                const timeInput = document.getElementById('timeInput');
-                const durationInput = document.getElementById('durationInput');
-                const confirmBtn = document.getElementById('popupConfirm');
-                
-                titleEl.textContent = title;
-                
-                reportContent.style.display = 'none';
-                timeInput.style.display = 'none';
-                durationInput.style.display = 'none';
-                
-                if (type === 'report') {
-                    reportContent.style.display = 'block';
-                    reportContent.textContent = value;
-                    confirmBtn.textContent = 'Invia Email';
-                } else if (type === 'time') {
-                    timeInput.style.display = 'block';
-                    timeInput.value = value;
-                    confirmBtn.textContent = 'Conferma';
-                    setTimeout(() => timeInput.focus(), 100);
-                } else if (type === 'duration') {
-                    durationInput.style.display = 'block';
-                    durationInput.value = value;
-                    confirmBtn.textContent = 'Conferma';
-                    setTimeout(() => durationInput.focus(), 100);
-                }
-                
-                popup.classList.add('active');
-            }
-
-            closePopup() {
-                document.getElementById('popupOverlay').classList.remove('active');
-                this.currentPopupType = null;
-                this.pendingAction = null;
-            }
-
-            confirmPopup() {
-                if (this.currentPopupType === 'time') {
-                    this.confirmTime();
-                } else if (this.currentPopupType === 'duration') {
-                    this.confirmDuration();
-                } else if (this.currentPopupType === 'report') {
-                    this.confirmShare();
-                }
-            }
-
-            confirmTime() {
-                const timeValue = document.getElementById('timeInput').value;
-                
-                if (this.pendingAction) {
-                    const { vinificatore, sector } = this.pendingAction;
-                    this.saveMeasurement(vinificatore, sector, 'time', timeValue);
-                    this.updateVinificatorePage(vinificatore);
-                }
-                
-                this.closePopup();
-            }
-
-            confirmDuration() {
-                const durationValue = document.getElementById('durationInput').value;
-                
-                if (this.pendingAction && durationValue) {
-                    const { vinificatore, sector, action } = this.pendingAction;
-                    
-                    // Assicura che l'attività sia inizializzata
-                    if (!this.activities[vinificatore]) this.activities[vinificatore] = {};
-                    if (!this.activities[vinificatore][sector]) this.activities[vinificatore][sector] = {};
-                    if (!this.activities[vinificatore][sector][action]) {
-                        this.activities[vinificatore][sector][action] = {
-                            active: false,
-                            priority: this.getNextActionPriority(vinificatore, sector),
-                            timestamp: new Date().toISOString()
-                        };
-                    }
-                    
-                    // Salva la durata
-                    this.activities[vinificatore][sector][action].duration = parseInt(durationValue);
-                    
-                    this.debouncedSave();
-                    this.updateVinificatorePage(vinificatore);
-                }
-                
-                this.closePopup();
-            }
-
-            confirmShare() {
-                const report = document.getElementById('reportContent').textContent;
-                const subject = encodeURIComponent('Report Attività Vinificatori');
-                const body = encodeURIComponent(report);
-                const mailtoLink = `mailto:?subject=${subject}&body=${body}`;
-                
-                window.location.href = mailtoLink;
-                this.closePopup();
-            }
-
-            shareReport() {
-                const report = this.generateReport();
-                this.currentPopupType = 'report';
-                this.showPopup('Report Attività Vinificatori', report, 'report');
-            }
-
-            generateReport() {
-                const now = new Date();
-                const timestamp = now.toLocaleString('it-IT');
-                
-                let report = `REPORT ATTIVITÀ VINIFICATORI\n`;
-                report += `Data: ${timestamp}\n`;
-                report += `Utente: ${this.userId}\n`;
-                report += `Modalità: ${this.isOfflineMode ? 'Solo offline' : (this.firebaseReady ? 'Firebase attivo' : 'Solo locale')}\n`;
-                report += `${'='.repeat(50)}\n\n`;
-                
-                const priorityEntries = Object.entries(this.priorities).sort(([,a], [,b]) => a - b);
-                
-                if (priorityEntries.length > 0) {
-                    report += `PRIORITÀ VINIFICATORI:\n`;
-                    report += `${'-'.repeat(25)}\n`;
-                    priorityEntries.forEach(([vinificatore, priority]) => {
-                        report += `${priority}. ${vinificatore}\n`;
-                    });
-                    report += `\n`;
-                }
-                
-                const activeVinificatori = Object.keys(this.activities).filter(v => this.hasActivities(v));
-                
-                report += `RIEPILOGO:\n`;
-                report += `${'-'.repeat(15)}\n`;
-                report += `Vinificatori con priorità: ${priorityEntries.length}\n`;
-                report += `Vinificatori con attività: ${activeVinificatori.length}\n`;
-                report += `Totale todo: ${this.tasks.length} (${this.tasks.filter(t => t.completed).length} completate)\n\n`;
-                
-                if (activeVinificatori.length > 0) {
-                    report += `DETTAGLIO ATTIVITÀ:\n`;
-                    report += `${'-'.repeat(20)}\n`;
-                    
-                    activeVinificatori.sort().forEach(vinificatore => {
-                        const priorityText = this.priorities[vinificatore] 
-                            ? ` (Priorità ${this.priorities[vinificatore]})` 
-                            : '';
-                        report += `\n${vinificatore}${priorityText}:\n`;
-                        
-                        this.sectors.forEach(sector => {
-                            const sectorActivities = this.activities[vinificatore][sector.key];
-                            if (sectorActivities) {
-                                const activeActions = Object.entries(sectorActivities)
-                                    .filter(([action, data]) => action !== 'measurements' && data?.active)
-                                    .sort(([,a], [,b]) => (a.priority || 0) - (b.priority || 0));
-                                
-                                if (activeActions.length > 0) {
-                                    const actionsText = activeActions.map(([action, data]) => {
-                                        let actionStr = `${data.priority}. ${action}`;
-                                        if (action === 'Rimontaggio' && data.duration) {
-                                            actionStr += ` (${data.duration}m)`;
-                                        }
-                                        return actionStr;
-                                    }).join(', ');
-                                    report += `  ${sector.emoji} ${sector.name}: ${actionsText}\n`;
-                                }
-                            }
-                        });
-                    });
-                }
-                
-                report += `\n${'='.repeat(50)}\n`;
-                report += `Report Vinificatori PWA v2.4 Enhanced`;
-                
-                return report;
-            }
-
-            resetAll() {
-                const confirmed = confirm('Sei sicuro di voler cancellare tutti i dati? Questa azione cancellerà anche i dati su Firebase (se attivo).');
-                
-                if (confirmed) {
-                    this.priorities = {};
-                    this.activities = {};
-                    this.tasks = [];
-                    
-                    this.saveAllData();
-                    this.updateHomeIndicators();
-                    this.updateTodoUI();
-                    
-                    if (this.currentVinificatorePage !== 'home') {
-                        this.updateVinificatorePage(this.currentVinificatorePage);
-                    }
-                    
-                    this.showNotification('Tutti i dati sono stati cancellati', 'success');
-                }
-            }
-
-            exportAllData() {
-                const data = {
-                    vinificatori: {
-                        priorities: this.priorities,
-                        activities: this.activities
-                    },
-                    tasks: this.tasks,
-                    userId: this.userId,
-                    isOfflineMode: this.isOfflineMode,
-                    exportedAt: new Date().toISOString(),
-                    version: '2.4'
-                };
-                
-                const blob = new Blob([JSON.stringify(data, null, 2)], {
-                    type: 'application/json'
-                });
-                
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `vinificatori-backup-${new Date().toISOString().split('T')[0]}.json`;
-                a.click();
-                
-                URL.revokeObjectURL(url);
-                this.showNotification('Dati esportati con successo!', 'success');
-            }
-
-            importAllData(event) {
-                const file = event.target.files[0];
-                if (!file) return;
-                
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    try {
-                        const data = JSON.parse(e.target.result);
-                        
-                        if (data.vinificatori && data.tasks) {
-                            if (data.vinificatori.priorities) {
-                                Object.assign(this.priorities, data.vinificatori.priorities);
-                            }
-                            
-                            if (data.vinificatori.activities) {
-                                Object.assign(this.activities, data.vinificatori.activities);
-                            }
-                            
-                            if (data.tasks && Array.isArray(data.tasks)) {
-                                this.tasks = [...this.tasks, ...data.tasks];
-                            }
-                            
-                            this.saveAllData();
-                            this.updateHomeIndicators();
-                            this.updateTodoUI();
-                            
-                            this.showNotification('Importazione completata e sincronizzata!', 'success');
-                        } else {
-                            this.showNotification('File non valido', 'error');
-                        }
-                    } catch (error) {
-                        this.showNotification('Errore durante importazione: ' + error.message, 'error');
-                    }
-                };
-                
-                reader.readAsText(file);
-                event.target.value = '';
-            }
-
-            syncAllData() {
-                this.saveAllData();
-                this.showNotification('Dati salvati e sincronizzati', 'success');
-            }
-
-            async forceFirebaseSync() {
-                if (!this.firebaseReady || this.isOfflineMode) {
-                    this.showNotification('Sincronizzazione Firebase non disponibile', 'warning');
-                    return;
-                }
-                
-                await this.pushToFirebase();
-                this.showNotification('Sincronizzazione Firebase completata', 'success');
-            }
-
-            debouncedSave() {
-                if (this.saveTimer) {
-                    clearTimeout(this.saveTimer);
-                }
-                
-                this.saveTimer = setTimeout(() => {
-                    this.saveAllData();
-                }, 500);
-            }
-
-            showNotification(message, type = 'info') {
-                const notification = document.createElement('div');
-                notification.style.cssText = `
-                    position: fixed;
-                    top: 25px;
-                    left: 50%;
-                    transform: translateX(-50%);
-                    background: ${type === 'error' ? '#dc3545' : type === 'warning' ? '#ffc107' : type === 'success' ? '#28a745' : '#722F37'};
-                    color: ${type === 'warning' ? '#212529' : 'white'};
-                    padding: 15px 25px;
-                    border-radius: 10px;
-                    box-shadow: 0 6px 15px rgba(0,0,0,0.3);
-                    z-index: 2000;
-                    font-size: 14px;
-                    font-weight: 600;
-                    max-width: 90%;
-                    text-align: center;
-                    animation: slideDown 0.3s ease;
-                `;
-                
-                notification.textContent = message;
-                document.body.appendChild(notification);
-                
-                setTimeout(() => {
-                    notification.style.animation = 'slideUp 0.3s ease';
-                    setTimeout(() => {
-                        if (notification.parentNode) {
-                            notification.parentNode.removeChild(notification);
-                        }
-                    }, 300);
-                }, 3000);
-            }
-        }
-
-        // Global functions for inline handlers - ID Management
-        function showIdPopup() {
-            if (vinificatoriApp) {
-                const popup = document.getElementById('idPopup');
-                const input = document.getElementById('idInput');
-                input.value = vinificatoriApp.userId;
-                popup.classList.add('active');
-                setTimeout(() => input.focus(), 100);
-            }
-        }
-
-        function closeIdPopup() {
-            document.getElementById('idPopup').classList.remove('active');
-        }
-
-        function generateRandomId() {
-            const randomId = 'user_' + Math.random().toString(36).substr(2, 9);
-            document.getElementById('idInput').value = randomId;
-        }
-
-        function saveCustomId() {
-            if (vinificatoriApp) {
-                const newId = document.getElementById('idInput').value.trim();
-                if (vinificatoriApp.changeUserId(newId)) {
-                    closeIdPopup();
-                }
-            }
-        }
-
-        // Global functions for inline handlers - Original Functions
-        function showPage(pageId) {
-            if (vinificatoriApp) vinificatoriApp.showPage(pageId);
-        }
-
-        function addTask() {
-            if (vinificatoriApp) vinificatoriApp.addTask();
-        }
-
-        function syncAllData() {
-            if (vinificatoriApp) vinificatoriApp.syncAllData();
-        }
-
-        function forceFirebaseSync() {
-            if (vinificatoriApp) vinificatoriApp.forceFirebaseSync();
-        }
-
-        function exportAllData() {
-            if (vinificatoriApp) vinificatoriApp.exportAllData();
-        }
-
-        function importAllData(event) {
-            if (vinificatoriApp) vinificatoriApp.importAllData(event);
-        }
-
-        // Prevent context menu and text selection on interactive elements
-        document.addEventListener('contextmenu', (e) => {
-            if (e.target.closest('.vinificatore-btn') || e.target.closest('.action-btn') || e.target.closest('.nav-btn')) {
-                e.preventDefault();
-            }
-        });
-
-        document.addEventListener('selectstart', (e) => {
-            if (e.target.closest('.vinificatore-btn') || e.target.closest('.action-btn') || e.target.closest('.nav-btn')) {
-                e.preventDefault();
-            }
-        });
-    </script>
-</body>
-</html>            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 50px 20px;
-            color: #666;
-        }
-
-        .empty-state h3 {
-            font-size: 20px;
-            margin-bottom: 10px;
-        }
-
-        .empty-state p {
-            font-size: 14px;
-        }
-
-        .sync-section {
-            padding: 20px;
-            border-top: 2px solid #eee;
-            margin-top: 20px;
-        }
-
-        .sync-section h3 {
-            font-size: 16px;
-            margin-bottom: 15px;
-        }
-
-        .sync-btn, .export-btn, .import-btn, .firebase-sync-btn {
-            padding: 12px 20px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            margin-right: 10px;
-            margin-bottom: 10px;
-            font-weight: 600;
-        }
-
-        .sync-btn {
-            background: #28a745;
-            color: white;
-        }
-
-        .export-btn {
-            background: #ffc107;
-            color: #212529;
-        }
-
-        .import-btn {
-            background: #6f42c1;
-            color: white;
-        }
-
-        .firebase-sync-btn {
-            background: linear-gradient(135deg, #ff6b35, #f7931e);
-            color: white;
-        }
-
-        .file-input {
-            display: none;
-        }
-
-        /* POPUP STYLES */
-        .popup-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            padding: 20px;
-        }
-
-        .popup-overlay.active {
-            display: flex;
-        }
-
-        .popup {
-            background: white;
-            border-radius: 15px;
-            padding: 25px;
-            max-width: min(90vw, 450px);
-            max-height: min(80vh, 600px);
-            overflow-y: auto;
-            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
-            text-align: center;
-        }
-
-        .popup h3, .popup h4 {
-            margin-bottom: 20px;
-            color: #495057;
-            font-size: clamp(16px, 3.5vw, 20px);
-        }
-
-        .popup input, .popup textarea {
-            width: 100%;
-            padding: 15px;
-            border: 2px solid #dee2e6;
-            border-radius: 10px;
-            font-size: clamp(14px, 3vw, 16px);
-            text-align: center;
-            margin-bottom: 20px;
-            font-family: monospace;
-        }
-
-        .popup input:focus, .popup textarea:focus {
-            outline: none;
-            border-color: #722F37;
-        }
-
-        .popup-content {
-            font-family: 'Courier New', monospace;
-            font-size: clamp(10px, 2.2vw, 12px);
-            line-height: 1.4;
-            color: #495057;
-            white-space: pre-wrap;
-            margin-bottom: 20px;
-            max-height: min(40vh, 400px);
-            overflow-y: auto;
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            text-align: left;
-        }
-
-        .popup-buttons {
-            display: flex;
-            gap: 12px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .popup-btn {
-            background: #722F37;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 12px 20px;
-            font-size: clamp(12px, 2.5vw, 14px);
-            cursor: pointer;
-            transition: all 0.3s ease;
-            touch-action: manipulation;
-            min-width: clamp(80px, 15vw, 120px);
-        }
-
-        .popup-btn:hover {
-            background: #8B4A47;
-        }
-
-        .popup-btn.cancel, .popup-btn.secondary {
-            background: #6c757d;
-        }
-
-        .popup-btn.cancel:hover, .popup-btn.secondary:hover {
-            background: #545b62;
-        }
-
-        /* ANIMATIONS */
-        @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.9); }
-            to { opacity: 1; transform: scale(1); }
-        }
-
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-
-        @keyframes slideDown {
-            from { transform: translateY(-100%); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateX(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
-
-        .fade-in {
-            animation: fadeIn 0.3s ease;
-        }
-
-        .pulse {
-            animation: pulse 0.5s ease;
-        }
-
-        /* RESPONSIVE ADJUSTMENTS */
-        @media (max-width: 480px) {
-            .container {
-                padding: 15px 10px;
-                border-radius: 15px;
-                min-height: 90vh;
-            }
-            
-            .home-grid {
-                gap: 15px;
-            }
-            
-            .popup {
-                padding: 20px 15px;
-                max-width: 95vw;
-            }
-
-            .main-nav {
-                gap: 8px;
-            }
-
-            .nav-btn {
-                min-width: 120px;
-                padding: 12px 20px;
-                font-size: 14px;
-            }
-
-            .user-id {
-                position: relative;
-                top: auto;
-                left: auto;
-                display: block;
-                margin-bottom: 10px;
-                text-align: center;
-                max-width: 100%;
-            }
-
-            .sectors-container {
-                gap: 12px;
-            }
-
-            .sector {
-                padding: 12px;
-            }
-        }
-
-        @media (max-height: 600px) {
-            .sectors-container {
-                gap: 10px;
-            }
-            
-            .sector {
-                padding: 10px;
-            }
-            
-            .container {
-                padding: 15px 20px;
-                min-height: 85vh;
-            }
-        }
-
-        @media (min-width: 768px) {
-            .container {
-                max-width: min(85vw, 900px);
-            }
-            
-            .home-grid {
-                gap: 30px;
-            }
-            
-            .sectors-container {
-                gap: 18px;
-            }
-        }
-
-        @media (min-width: 1024px) {
-            .container {
-                max-width: min(75vw, 1000px);
-                min-height: min(90vh, 1000px);
-            }
-        }
-    </style>
-</head>
-<body>
-    <!-- LOGIN SCREEN -->
-    <div class="login-screen" id="loginScreen">
-        <div class="login-logo">🍇</div>
-        <div class="login-title">Vinificatori PWA</div>
-        <div class="login-subtitle">Gestione professionale vinificatori</div>
-        
-        <div class="login-options">
-            <button class="login-btn cloud" onclick="startCloudMode()">
-                🔥 Modalità Cloud
-                <div style="font-size: 1rem; font-weight: normal; margin-top: 10px;">
-                    Sincronizzazione dati multi-dispositivo
-                </div>
-            </button>
-            <button class="login-btn offline" onclick="startOfflineMode()">
-                📱 Modalità Offline
-                <div style="font-size: 1rem; font-weight: normal; margin-top: 10px;">
-                    Solo su questo dispositivo
-                </div>
-            </button>
-        </div>
-        
-        <div class="loading-spinner" id="loadingSpinner">
-            <div class="spinner"></div>
-            <div class="loading-text" id="loadingText">Connessione in corso...</div>
-        </div>
-    </div>
-
-    <div class="container">
-        <!-- User ID Display - CLICKABLE -->
-        <div class="user-id" id="userIdDisplay" onclick="showIdPopup()" title="Clicca per cambiare ID utente">Caricamento...</div>
-        
-        <!-- Sync Status Indicator -->
-        <div class="sync-status" id="syncStatus">
-            <div class="sync-tooltip" id="syncTooltip">Inizializzando...</div>
-        </div>
-
-        <!-- Firebase Status Banner -->
-        <div class="firebase-status" id="firebaseStatus">
-            🔄 Verifica connessione Firebase...
-        </div>
-
-        <!-- ID Management Popup -->
-        <div class="id-popup" id="idPopup">
-            <div class="id-popup-content">
-                <h3>Gestione ID Utente</h3>
-                <div class="id-info">
-                    Il tuo ID utente identifica i tuoi dati su Firebase.<br>
-                    Usa lo stesso ID su più dispositivi per sincronizzare i dati.
-                </div>
-                <input type="text" class="id-input" id="idInput" placeholder="Inserisci il tuo ID (es: mario_rossi)" maxlength="50">
-                <div class="id-popup-buttons">
-                    <button class="id-popup-btn cancel" onclick="closeIdPopup()">Annulla</button>
-                    <button class="id-popup-btn" onclick="generateRandomId()">ID Casuale</button>
-                    <button class="id-popup-btn" onclick="saveCustomId()">Salva ID</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Main Navigation -->
-        <div class="main-nav">
-            <button class="nav-btn active" onclick="showPage('vinificatori')">🍇 Vinificatori</button>
-            <button class="nav-btn" onclick="showPage('todo')">✅ Todo</button>
-        </div>
-
-        <!-- VINIFICATORI PAGE -->
-        <div id="vinificatoriPage" class="page active">
-            <!-- HOME PAGE -->
-            <div id="homePage" class="home-page">
-                <div class="home-grid" id="homeGrid">
-                    <button class="vinificatore-btn" data-vinificatore="V01">V01</button>
-                    <button class="vinificatore-btn" data-vinificatore="V02">V02</button>
-                    <button class="vinificatore-btn" data-vinificatore="V03">V03</button>
-                    <button class="vinificatore-btn" data-vinificatore="V04">V04</button>
-                    <button class="vinificatore-btn" data-vinificatore="V05">V05</button>
-                    <button class="vinificatore-btn" data-vinificatore="V06">V06</button>
-                    <button class="vinificatore-btn" data-vinificatore="V07">V07</button>
-                    <button class="vinificatore-btn" data-vinificatore="V08">V08</button>
-                    <button class="vinificatore-btn" data-vinificatore="V09">V09</button>
-                    <button class="vinificatore-btn" data-vinificatore="V10">V10</button>
-                    <button class="vinificatore-btn reset-btn" id="resetBtn">RESET</button>
-                    <button class="vinificatore-btn share-btn" id="shareBtn">CONDIVIDI</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- TODO PAGE -->
-        <div id="todoPage" class="page todo-page">
-            <div class="todo-header">
-                <h1>🎯 Lista Attività</h1>
-                <p>Gestisci le tue attività vinicole</p>
-            </div>
-            
-            <div class="input-section">
-                <div class="input-group">
-                    <input type="text" class="task-input" id="taskInput" placeholder="Aggiungi una nuova attività..." maxlength="100">
-                    <button class="add-btn" onclick="addTask()">+ Aggiungi</button>
-                </div>
-            </div>
-            
-            <div class="tasks-section" id="tasksContainer">
-                <div class="empty-state" id="emptyState">
-                    <div style="font-size: 48px; margin-bottom: 20px;">📝</div>
-                    <h3>Nessuna attività</h3>
-                    <p>Aggiungi la tua prima attività per iniziare!</p>
-                </div>
-            </div>
-            
-            <div class="sync-section">
-                <h3>🔄 Sincronizzazione Dati</h3>
-                <div style="margin-bottom: 15px;">
-                    <button class="firebase-sync-btn" onclick="forceFirebaseSync()" id="firebaseSyncBtn">🔥 Sync Cloud</button>
-                    <button class="sync-btn" onclick="syncAllData()">🔄 Sync Locale</button>
-                </div>
-                <div>
-                    <button class="export-btn" onclick="exportAllData()">📤 Esporta</button>
-                    <button class="import-btn" onclick="document.getElementById('fileInput').click()">📥 Importa</button>
-                    <input type="file" id="fileInput" class="file-input" accept=".json" onchange="importAllData(event)">
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- UNIVERSAL POPUP -->
-    <div class="popup-overlay" id="popupOverlay">
-        <div class="popup">
-            <h3 id="popupTitle">Popup</h3>
-            <div id="popupContent">
-                <div class="popup-content" id="reportContent" style="display:none;"></div>
-                <input type="time" id="timeInput" style="display:none;">
-                <input type="number" id="durationInput" placeholder="Minuti (1-999)" min="1" max="999" style="display:none;">
-            </div>
-            <div class="popup-buttons">
-                <button class="popup-btn cancel" id="popupCancel">Annulla</button>
-                <button class="popup-btn" id="popupConfirm">Conferma</button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // Enhanced PWA App Class with Fixed Login and Long Press for Duration
-        class VinificatoriFirebasePWA {
-            constructor() {
-                // Core properties
-                this.currentPage = 'vinificatori';
-                this.currentVinificatorePage = 'home';
-                this.priorities = {};
-                this.activities = {};
-                this.tasks = [];
-                this.longPressTimer = null;
-                this.longPressDelay = 800;
-                this.saveTimer = null;
-                this.isLongPressing = false;
-                this.currentPopupType = null;
-                this.pendingAction = null;
-                
-                // Firebase properties
-                this.userId = this.generateUserId();
-                this.firebaseReady = window.firebaseReady || false;
-                this.syncInProgress = false;
-                this.lastSync = null;
-                this.realTimeListener = null;
-                this.firebaseSyncTimer = null;
-                this.isOfflineMode = false;
-                this.isDataLoaded = false;
-                
-                this.sectors = [
-                    { key: 'mattino', name: 'Mattino', emoji: '🌅' },
-                    { key: 'pomeriggio', name: 'Pomeriggio', emoji: '☀️' },
-                    { key: 'sera', name: 'Sera', emoji: '🌇' },
-                    { key: 'notte', name: 'Notte', emoji: '🌙' }
-                ];
-                
-                this.actions = ['Rimontaggio', 'Follatura', 'Campione', 'Aggiunta'];
-            }
-
-            hideLoginScreen() {
-                document.getElementById('loginScreen').classList.add('hidden');
-            }
-
-            async waitForDataLoad() {
-                return new Promise(resolve => {
-                    const checkData = () => {
-                        if (this.isDataLoaded || this.isOfflineMode) {
-                            resolve();
-                        } else {
-                            setTimeout(checkData, 100);
-                        }
-                    };
-                    checkData();
-                });
-            }
-
-            init() {
-                this.loadAllData();
-                this.setupEventListeners();
-                this.updateHomeIndicators();
-                this.updateTodoUI();
-                this.startAutoSave();
-                this.updateSyncStatus();
-                this.updateUserDisplay();
-                
-                if (!this.isOfflineMode) {
-                    this.checkFirebaseStatus();
-                } else {
-                    this.isDataLoaded = true;
-                }
-            }
-
-            checkFirebaseStatus() {
-                if (window.firebaseReady && !this.isOfflineMode) {
-                    this.onFirebaseReady();
-                } else {
-                    this.showFirebaseStatus('error');
-                    this.isDataLoaded = true;
-                }
-            }
-
-            generateUserId() {
-                let userId = localStorage.getItem('userId');
-                if (!userId) {
-                    userId = 'user_' + Math.random().toString(36).substr(2, 9);
-                    localStorage.setItem('userId', userId);
-                }
-                return userId;
-            }
-
-            changeUserId(newId) {
-                if (!newId || newId.trim() === '') {
-                    this.showNotification('ID non valido', 'error');
-                    return false;
-                }
-
-                const cleanId = newId.trim().toLowerCase()
-                    .replace(/[^a-z0-9_-]/g, '_')
-                    .substring(0, 50);
-
-                if (cleanId !== this.userId) {
-                    const oldId = this.userId;
-                    this.userId = cleanId;
-                    
-                    localStorage.setItem('userId', cleanId);
-                    
-                    if (this.realTimeListener) {
-                        this.realTimeListener();
-                        this.realTimeListener = null;
-                    }
-                    
-                    if (this.firebaseReady && !this.isOfflineMode) {
-                        this.startFirebaseSync();
-                    }
-                    
-                    this.updateUserDisplay();
-                    this.showNotification(`ID cambiato da "${oldId}" a "${cleanId}"`, 'success');
-                    
-                    return true;
-                }
-                
-                return false;
-            }
-
-            showFirebaseStatus(status) {
-                const statusEl = document.getElementById('firebaseStatus');
-                statusEl.classList.remove('show', 'loading', 'error');
-                
-                if (status === 'loading') {
-                    statusEl.textContent = '🔄 Connessione Firebase in corso...';
-                    statusEl.classList.add('show', 'loading');
-                } else if (status === 'success') {
-                    statusEl.textContent = '🔥 Firebase connesso - Sincronizzazione attiva';
-                    statusEl.classList.add('show');
-                    setTimeout(() => {
-                        statusEl.classList.remove('show');
-                    }, 3000);
-                } else if (status === 'error') {
-                    const message = this.isOfflineMode ? 
-                        '📱 Modalità offline attiva - Dati solo locali' :
-                        '⚠️ Firebase non disponibile - Modalità offline attiva';
-                    statusEl.textContent = message;
-                    statusEl.classList.add('show', 'error');
-                    setTimeout(() => {
-                        statusEl.classList.remove('show');
-                    }, 5000);
-                }
-            }
-
-            onFirebaseReady() {
-                console.log('Firebase pronto per l\'uso');
-                this.firebaseReady = true;
-                this.showFirebaseStatus('success');
-                this.updateSyncStatus();
-                this.updateUserDisplay();
-                this.startFirebaseSync();
-            }
-
-            updateUserDisplay() {
-                const display = document.getElementById('userIdDisplay');
-                let status;
-                if (this.isOfflineMode) {
-                    status = 'offline';
-                } else {
-                    status = this.firebaseReady ? 'cloud' : 'offline';
-                }
-                display.textContent = `${this.userId} • ${status}`;
-                display.title = `ID: ${this.userId}\nStato: ${status}\nClicca per cambiare ID`;
-            }
-
-            updateSyncStatus() {
-                const status = document.getElementById('syncStatus');
-                const tooltip = document.getElementById('syncTooltip');
-                
-                if (this.isOfflineMode) {
-                    status.className = 'sync-status';
-                    tooltip.textContent = 'Modalità offline - Dati solo su questo dispositivo';
-                } else if (!this.firebaseReady) {
-                    status.className = 'sync-status';
-                    tooltip.textContent = 'Firebase non disponibile - Solo modalità offline';
-                } else if (this.syncInProgress) {
-                    status.className = 'sync-status syncing';
-                    tooltip.textContent = 'Sincronizzazione cloud in corso...';
-                } else {
-                    status.className = 'sync-status firebase online';
-                    tooltip.textContent = this.lastSync ? 
-                        `Ultimo sync cloud: ${this.lastSync.toLocaleTimeString()}` : 
-                        'Sincronizzazione cloud attiva';
-                }
-            }
-
-            async startFirebaseSync() {
-                if (!this.firebaseReady || !window.db || this.isOfflineMode) {
-                    this.isDataLoaded = true;
-                    return;
-                }
-                
-                try {
-                    const docRef = window.db.collection('vinificatori_data').doc(this.userId);
-                    
-                    this.realTimeListener = docRef.onSnapshot((snapshot) => {
-                        if (snapshot.exists) {
-                            const cloudData = snapshot.data();
-                            console.log('Dati ricevuti da Firebase:', cloudData);
-                            this.mergeCloudData(cloudData);
-                            this.lastSync = new Date();
-                            this.updateSyncStatus();
-                        } else {
-                            console.log('Nessun documento cloud, creando...');
-                            this.pushToFirebase();
-                        }
-                        this.isDataLoaded = true;
-                    }, (error) => {
-                        console.error('Errore listener Firebase:', error);
-                        this.showFirebaseStatus('error');
-                        this.isDataLoaded = true;
-                    });
-                    
-                } catch (error) {
-                    console.error('Errore setup Firebase sync:', error);
-                    this.showFirebaseStatus('error');
-                    this.isDataLoaded = true;
-                }
-            }
-
-            mergeCloudData(cloudData) {
-                const localTimestamp = parseInt(localStorage.getItem('lastLocalUpdate') || '0');
-                const cloudTimestamp = cloudData.timestamp || 0;
-                
-                if (cloudTimestamp > localTimestamp) {
-                    console.log('Cloud data is newer, merging...');
-                    
-                    if (cloudData.priorities) this.priorities = cloudData.priorities;
-                    if (cloudData.activities) this.activities = cloudData.activities;
-                    if (cloudData.tasks) this.tasks = cloudData.tasks;
-                    
-                    this.updateHomeIndicators();
-                    this.updateTodoUI();
-                    if (this.currentVinificatorePage !== 'home') {
-                        this.updateVinificatorePage(this.currentVinificatorePage);
-                    }
-                    
-                    this.saveAllDataLocal();
-                    this.showNotification('Dati aggiornati dal cloud', 'success');
-                }
-            }
-
-            async pushToFirebase() {
-                if (!this.firebaseReady || !window.db || this.syncInProgress || this.isOfflineMode) return;
-                
-                this.syncInProgress = true;
-                this.updateSyncStatus();
-                
-                try {
-                    const docRef = window.db.collection('vinificatori_data').doc(this.userId);
-                    
-                    const dataToSync = {
-                        priorities: this.priorities,
-                        activities: this.activities,
-                        tasks: this.tasks,
-                        timestamp: Date.now(),
-                        lastDevice: navigator.userAgent.substr(0, 50),
-                        userId: this.userId,
-                        version: '2.4'
-                    };
-                    
-                    await docRef.set(dataToSync, { merge: true });
-                    
-                    localStorage.setItem('lastLocalUpdate', dataToSync.timestamp.toString());
-                    this.lastSync = new Date();
-                    console.log('Dati sincronizzati su Firebase');
-                    
-                } catch (error) {
-                    console.error('Errore push Firebase:', error);
-                    this.showNotification('Errore sincronizzazione cloud', 'error');
-                } finally {
-                    this.syncInProgress = false;
-                    this.updateSyncStatus();
-                }
-            }
-
-            loadAllData() {
-                try {
-                    const savedPriorities = localStorage.getItem('vinificatore_priorities');
-                    const savedActivities = localStorage.getItem('vinificatore_activities');
-                    const savedTasks = localStorage.getItem('todoTasks');
-                    
-                    this.priorities = savedPriorities ? JSON.parse(savedPriorities) : {};
-                    this.activities = savedActivities ? JSON.parse(savedActivities) : {};
-                    this.tasks = savedTasks ? JSON.parse(savedTasks) : [];
-                    
-                    this.migrateDataStructure();
-                } catch (e) {
-                    console.error('Error loading data:', e);
-                    this.priorities = {};
-                    this.activities = {};
-                    this.tasks = [];
-                }
-            }
-
-            migrateDataStructure() {
-                Object.keys(this.activities).forEach(vinificatore => {
-                    this.sectors.forEach(sector => {
-                        if (!this.activities[vinificatore][sector.key]) {
-                            this.activities[vinificatore][sector.key] = {};
-                        }
-                        if (!this.activities[vinificatore][sector.key].measurements) {
-                            this.activities[vinificatore][sector.key].measurements = {
-                                time: '', temperature: '', density: ''
-                            };
-                        }
-                    });
-                });
-            }
-
-            saveAllData() {
-                this.saveAllDataLocal();
-                
-                if (this.firebaseReady && !this.syncInProgress && !this.isOfflineMode) {
-                    this.debouncedFirebaseSync();
-                }
-            }
-
-            saveAllDataLocal() {
-                try {
-                    localStorage.setItem('vinificatore_priorities', JSON.stringify(this.priorities));
-                    localStorage.setItem('vinificatore_activities', JSON.stringify(this.activities));
-                    localStorage.setItem('todoTasks', JSON.stringify(this.tasks));
-                    localStorage.setItem('lastLocalUpdate', Date.now().toString());
-                } catch (e) {
-                    console.error('Error saving data locally:', e);
-                    this.showNotification('Errore salvataggio locale', 'error');
-                }
-            }
-
-            debouncedFirebaseSync() {
-                if (this.firebaseSyncTimer) {
-                    clearTimeout(this.firebaseSyncTimer);
-                }
-                
-                this.firebaseSyncTimer = setTimeout(() => {
-                    this.pushToFirebase();
-                }, 2000);
-            }
-
-            startAutoSave() {
-                setInterval(() => this.saveAllData(), 30000);
-                window.addEventListener('beforeunload', () => this.saveAllData());
-            }
-
-            showPage(pageId) {
-                document.querySelectorAll('.page').forEach(page => {
-                    page.classList.remove('active');
-                });
-                
-                document.querySelectorAll('.nav-btn').forEach(btn => {
-                    btn.classList.remove('active');
-                });
-                
-                document.getElementById(pageId + 'Page').classList.add('active');
-                event.target.classList.add('active');
-                
-                this.currentPage = pageId;
-                
-                if (pageId === 'todo') {
-                    this.updateTodoUI();
-                } else if (pageId === 'vinificatori') {
-                    this.updateHomeIndicators();
-                }
-            }
-
-            setupEventListeners() {
-                const homeGrid = document.getElementById('homeGrid');
-                
-                // Long press per pulsanti vinificatore (home page)
-                homeGrid.addEventListener('touchstart', (e) => {
-                    const button = e.target.closest('.vinificatore-btn');
-                    if (!button) return;
-                    
-                    e.preventDefault();
-                    
-                    if (button.dataset.vinificatore) {
-                        this.startLongPress(button, 'priority');
-                    }
-                }, { passive: false });
-
-                homeGrid.addEventListener('touchend', (e) => {
-                    const button = e.target.closest('.vinificatore-btn');
-                    if (!button) return;
-                    
-                    e.preventDefault();
-                    
-                    if (this.isLongPressing) {
-                        this.cancelLongPress();
-                        return;
-                    }
-                    
-                    this.cancelLongPress();
-                    this.handleHomeButtonClick(button);
-                }, { passive: false });
-
-                homeGrid.addEventListener('touchcancel', () => this.cancelLongPress());
-
-                // Desktop mouse events per long press
-                homeGrid.addEventListener('mousedown', (e) => {
-                    const button = e.target.closest('.vinificatore-btn');
-                    if (button?.dataset.vinificatore) {
-                        this.startLongPress(button, 'priority');
-                    }
-                });
-
-                homeGrid.addEventListener('mouseup', () => this.cancelLongPress());
-                homeGrid.addEventListener('mouseleave', () => this.cancelLongPress());
-
-                homeGrid.addEventListener('click', (e) => {
-                    const button = e.target.closest('.vinificatore-btn');
-                    if (button && !this.isLongPressing) {
-                        this.handleHomeButtonClick(button);
-                    }
-                });
-
-                // FIXED: Long press per pulsanti azione Rimontaggio
-                document.addEventListener('touchstart', (e) => {
-                    const actionBtn = e.target.closest('.action-btn');
-                    if (actionBtn && actionBtn.dataset.action === 'Rimontaggio') {
-                        e.preventDefault();
-                        this.startLongPress(action<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
@@ -1751,7 +23,7 @@
     <script>
         // Configurazione Firebase
         const firebaseConfig = {
-            "apiKey": "AIzaSyAiTcRRpKzWyLU_7hT2g9QlFAgtX5H1JHQ",
+            "apiKey": "AIzaSyBHxGHYSGCgMVEcE7r9LPQC7w1234567890",
             "authDomain": "vinificatori-pwa.firebaseapp.com",
             "projectId": "vinificatori-pwa",
             "storageBucket": "vinificatori-pwa.firebasestorage.app",
@@ -1801,44 +73,53 @@
         // Global variables
         let vinificatoriApp;
 
-        // Login functions - FIXED with correct implementation
-        async function startCloudMode() {
-            console.log('startCloudMode called');
-            document.getElementById('loadingSpinner').classList.add('active');
-            document.getElementById('loadingText').textContent = 'Connessione Firebase in corso...';
-            
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            vinificatoriApp = new VinificatoriFirebasePWA();
-            vinificatoriApp.isOfflineMode = false;
-            
-            if (window.firebaseReady) {
-                document.getElementById('loadingText').textContent = 'Caricamento dati...';
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-                vinificatoriApp.init();
-                await vinificatoriApp.waitForDataLoad();
-                vinificatoriApp.hideLoginScreen();
-            } else {
-                document.getElementById('loadingText').textContent = 'Firebase non disponibile, passaggio offline...';
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                startOfflineMode();
+        // Funzione di avvio semplificata
+        async function startApp(username) {
+            if (!username || username.trim() === '') {
+                document.getElementById('loginError').textContent = 'Inserisci un nome utente valido';
+                return;
             }
+
+            document.getElementById('loginError').textContent = '';
+            document.getElementById('loadingSpinner').classList.add('active');
+            document.getElementById('loginForm').style.display = 'none';
+            
+            // Controllo automatico Firebase
+            let isOnline = window.firebaseReady;
+            
+            if (isOnline) {
+                document.getElementById('loadingText').textContent = 'Connessione cloud in corso...';
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            } else {
+                document.getElementById('loadingText').textContent = 'Modalità offline - Dati locali';
+                await new Promise(resolve => setTimeout(resolve, 800));
+            }
+            
+            // Inizializza l'app
+            vinificatoriApp = new VinificatoriFirebasePWA(username, !isOnline);
+            await vinificatoriApp.init();
+            
+            // Nascondi schermata di login
+            document.getElementById('loginScreen').classList.add('hidden');
         }
 
-        async function startOfflineMode() {
-            console.log('startOfflineMode called');
-            document.getElementById('loadingSpinner').classList.add('active');
-            document.getElementById('loadingText').textContent = 'Modalità offline attivata...';
+        // Event listener per form
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('loginForm');
+            const input = document.getElementById('usernameInput');
             
-            await new Promise(resolve => setTimeout(resolve, 800));
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                startApp(input.value);
+            });
             
-            vinificatoriApp = new VinificatoriFirebasePWA();
-            vinificatoriApp.isOfflineMode = true;
-            vinificatoriApp.isDataLoaded = true; // FIXED: Set data as loaded immediately in offline mode
-            vinificatoriApp.init();
-            vinificatoriApp.hideLoginScreen();
-        }
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    startApp(input.value);
+                }
+            });
+        });
     </script>
     
     <style>
@@ -1876,70 +157,82 @@
             color: white;
             text-align: center;
             padding: 25px;
+            transition: opacity 0.5s ease;
         }
 
         .login-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
             display: none;
         }
 
         .login-logo {
             font-size: 5rem;
-            margin-bottom: 2.5rem;
+            margin-bottom: 2rem;
         }
 
         .login-title {
-            font-size: 3rem;
+            font-size: 2.5rem;
             font-weight: bold;
-            margin-bottom: 1.2rem;
+            margin-bottom: 1rem;
         }
 
         .login-subtitle {
-            font-size: 1.4rem;
-            margin-bottom: 3.5rem;
+            font-size: 1.2rem;
+            margin-bottom: 3rem;
             opacity: 0.9;
         }
 
-        .login-options {
-            display: flex;
-            flex-direction: column;
-            gap: 2rem;
-            max-width: 450px;
+        .login-form {
+            max-width: 400px;
             width: 100%;
         }
 
+        .username-input {
+            width: 100%;
+            padding: 15px 20px;
+            font-size: 18px;
+            border: none;
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            color: #333;
+        }
+
+        .username-input:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
+        }
+
         .login-btn {
-            padding: 1.5rem 2.5rem;
-            font-size: 1.4rem;
+            width: 100%;
+            padding: 15px 20px;
+            font-size: 18px;
             font-weight: bold;
             border: none;
-            border-radius: 15px;
+            border-radius: 12px;
             cursor: pointer;
             transition: all 0.3s ease;
-            min-height: 80px;
-        }
-
-        .login-btn.cloud {
             background: linear-gradient(145deg, #28a745, #20c997);
             color: white;
+            margin-bottom: 15px;
         }
 
-        .login-btn.cloud:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 30px rgba(40, 167, 69, 0.4);
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(40, 167, 69, 0.4);
         }
 
-        .login-btn.offline {
-            background: linear-gradient(145deg, #6c757d, #5a6268);
-            color: white;
-        }
-
-        .login-btn.offline:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 30px rgba(108, 117, 125, 0.4);
+        .login-error {
+            color: #ff6b6b;
+            font-size: 14px;
+            margin-top: 10px;
+            min-height: 20px;
         }
 
         .loading-spinner {
-            margin-top: 2.5rem;
+            margin-top: 2rem;
             display: none;
         }
 
@@ -1954,7 +247,7 @@
             width: 50px;
             height: 50px;
             animation: spin 1s linear infinite;
-            margin: 0 auto 1.5rem;
+            margin: 0 auto 1rem;
         }
 
         @keyframes spin {
@@ -1963,7 +256,7 @@
         }
 
         .loading-text {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             opacity: 0.9;
         }
 
@@ -2002,7 +295,7 @@
             background: linear-gradient(135deg, #dc3545, #c82333);
         }
 
-        .firebase-status.loading {
+        .firebase-status.warning {
             background: linear-gradient(135deg, #ffc107, #e0a800);
             color: #212529;
         }
@@ -2076,95 +369,6 @@
         .user-id:hover {
             background: rgba(114, 47, 55, 0.2);
             max-width: 240px;
-        }
-
-        /* ID Management Popup */
-        .id-popup {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 2000;
-            padding: 20px;
-        }
-
-        .id-popup.active {
-            display: flex;
-        }
-
-        .id-popup-content {
-            background: white;
-            border-radius: 18px;
-            padding: 30px;
-            max-width: 450px;
-            width: 100%;
-            text-align: center;
-            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
-        }
-
-        .id-popup h3 {
-            margin-bottom: 20px;
-            color: #495057;
-            font-size: 20px;
-        }
-
-        .id-input {
-            width: 100%;
-            padding: 15px;
-            border: 2px solid #dee2e6;
-            border-radius: 10px;
-            font-size: 16px;
-            text-align: center;
-            margin-bottom: 20px;
-            font-family: monospace;
-        }
-
-        .id-input:focus {
-            outline: none;
-            border-color: #722F37;
-        }
-
-        .id-popup-buttons {
-            display: flex;
-            gap: 12px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .id-popup-btn {
-            background: #722F37;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            padding: 12px 20px;
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            min-width: 100px;
-        }
-
-        .id-popup-btn:hover {
-            background: #8B4A47;
-        }
-
-        .id-popup-btn.cancel {
-            background: #6c757d;
-        }
-
-        .id-popup-btn.cancel:hover {
-            background: #545b62;
-        }
-
-        .id-info {
-            font-size: 14px;
-            color: #6c757d;
-            margin-bottom: 18px;
-            line-height: 1.5;
         }
 
         /* Main Navigation */
@@ -2303,7 +507,7 @@
             background: linear-gradient(145deg, #b3d9ff, #99ccff);
         }
 
-        /* VINIFICATORE PAGE STYLES - OPTIMIZED */
+        /* VINIFICATORE PAGE STYLES */
         .vinificatore-page {
             display: none;
             flex-direction: column;
@@ -2545,10 +749,6 @@
             margin-bottom: 8px;
         }
 
-        .todo-header p {
-            font-size: clamp(14px, 3vw, 16px);
-        }
-
         .input-section {
             margin-bottom: 20px;
         }
@@ -2635,4 +835,1573 @@
             color: white;
             border: none;
             padding: 6px 10px;
-            border-radius:
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 50px 20px;
+            color: #666;
+        }
+
+        .sync-section {
+            padding: 20px;
+            border-top: 2px solid #eee;
+            margin-top: 20px;
+        }
+
+        .sync-btn, .export-btn, .import-btn, .firebase-sync-btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .sync-btn {
+            background: #28a745;
+            color: white;
+        }
+
+        .export-btn {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .import-btn {
+            background: #6f42c1;
+            color: white;
+        }
+
+        .firebase-sync-btn {
+            background: linear-gradient(135deg, #ff6b35, #f7931e);
+            color: white;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        /* POPUP STYLES */
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .popup-overlay.active {
+            display: flex;
+        }
+
+        .popup {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            max-width: min(90vw, 450px);
+            max-height: min(80vh, 600px);
+            overflow-y: auto;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+
+        .popup h3 {
+            margin-bottom: 20px;
+            color: #495057;
+            font-size: clamp(16px, 3.5vw, 20px);
+        }
+
+        .popup input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            font-size: clamp(14px, 3vw, 16px);
+            text-align: center;
+            margin-bottom: 20px;
+            font-family: monospace;
+        }
+
+        .popup input:focus {
+            outline: none;
+            border-color: #722F37;
+        }
+
+        .popup-content {
+            font-family: 'Courier New', monospace;
+            font-size: clamp(10px, 2.2vw, 12px);
+            line-height: 1.4;
+            color: #495057;
+            white-space: pre-wrap;
+            margin-bottom: 20px;
+            max-height: min(40vh, 400px);
+            overflow-y: auto;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: left;
+        }
+
+        .popup-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .popup-btn {
+            background: #722F37;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 20px;
+            font-size: clamp(12px, 2.5vw, 14px);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            touch-action: manipulation;
+            min-width: clamp(80px, 15vw, 120px);
+        }
+
+        .popup-btn:hover {
+            background: #8B4A47;
+        }
+
+        .popup-btn.cancel {
+            background: #6c757d;
+        }
+
+        .popup-btn.cancel:hover {
+            background: #545b62;
+        }
+
+        /* ANIMATIONS */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        @keyframes slideDown {
+            from { transform: translateY(-100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease;
+        }
+
+        .pulse {
+            animation: pulse 0.5s ease;
+        }
+
+        /* RESPONSIVE ADJUSTMENTS */
+        @media (max-width: 480px) {
+            .container {
+                padding: 15px 10px;
+                border-radius: 15px;
+                min-height: 90vh;
+            }
+            
+            .home-grid {
+                gap: 15px;
+            }
+            
+            .popup {
+                padding: 20px 15px;
+                max-width: 95vw;
+            }
+
+            .main-nav {
+                gap: 8px;
+            }
+
+            .nav-btn {
+                min-width: 120px;
+                padding: 12px 20px;
+                font-size: 14px;
+            }
+
+            .user-id {
+                position: relative;
+                top: auto;
+                left: auto;
+                display: block;
+                margin-bottom: 10px;
+                text-align: center;
+                max-width: 100%;
+            }
+
+            .sectors-container {
+                gap: 12px;
+            }
+
+            .sector {
+                padding: 12px;
+            }
+        }
+
+        @media (max-height: 600px) {
+            .sectors-container {
+                gap: 10px;
+            }
+            
+            .sector {
+                padding: 10px;
+            }
+            
+            .container {
+                padding: 15px 20px;
+                min-height: 85vh;
+            }
+        }
+
+        @media (min-width: 768px) {
+            .container {
+                max-width: min(85vw, 900px);
+            }
+            
+            .home-grid {
+                gap: 30px;
+            }
+            
+            .sectors-container {
+                gap: 18px;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .container {
+                max-width: min(75vw, 1000px);
+                min-height: min(90vh, 1000px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- LOGIN SCREEN -->
+    <div class="login-screen" id="loginScreen">
+        <div class="login-logo">🍇</div>
+        <div class="login-title">Vinificatori PWA</div>
+        <div class="login-subtitle">Gestione professionale vinificatori</div>
+        
+        <form class="login-form" id="loginForm">
+            <input type="text" class="username-input" id="usernameInput" 
+                   placeholder="Inserisci il tuo nome utente" 
+                   maxlength="50" autocomplete="username" required>
+            <button type="submit" class="login-btn">
+                🚀 Inizia
+            </button>
+            <div class="login-error" id="loginError"></div>
+        </form>
+        
+        <div class="loading-spinner" id="loadingSpinner">
+            <div class="spinner"></div>
+            <div class="loading-text" id="loadingText">Inizializzazione...</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- User ID Display -->
+        <div class="user-id" id="userIdDisplay">Caricamento...</div>
+        
+        <!-- Sync Status Indicator -->
+        <div class="sync-status" id="syncStatus">
+            <div class="sync-tooltip" id="syncTooltip">Inizializzando...</div>
+        </div>
+
+        <!-- Firebase Status Banner -->
+        <div class="firebase-status" id="firebaseStatus">
+            🔄 Verifica connessione...
+        </div>
+
+        <!-- Main Navigation -->
+        <div class="main-nav">
+            <button class="nav-btn active" onclick="showPage('vinificatori')">🍇 Vinificatori</button>
+            <button class="nav-btn" onclick="showPage('todo')">✅ Todo</button>
+        </div>
+
+        <!-- VINIFICATORI PAGE -->
+        <div id="vinificatoriPage" class="page active">
+            <!-- HOME PAGE -->
+            <div id="homePage" class="home-page">
+                <div class="home-grid" id="homeGrid">
+                    <button class="vinificatore-btn" data-vinificatore="V01">V01</button>
+                    <button class="vinificatore-btn" data-vinificatore="V02">V02</button>
+                    <button class="vinificatore-btn" data-vinificatore="V03">V03</button>
+                    <button class="vinificatore-btn" data-vinificatore="V04">V04</button>
+                    <button class="vinificatore-btn" data-vinificatore="V05">V05</button>
+                    <button class="vinificatore-btn" data-vinificatore="V06">V06</button>
+                    <button class="vinificatore-btn" data-vinificatore="V07">V07</button>
+                    <button class="vinificatore-btn" data-vinificatore="V08">V08</button>
+                    <button class="vinificatore-btn" data-vinificatore="V09">V09</button>
+                    <button class="vinificatore-btn" data-vinificatore="V10">V10</button>
+                    <button class="vinificatore-btn reset-btn" id="resetBtn">RESET</button>
+                    <button class="vinificatore-btn share-btn" id="shareBtn">CONDIVIDI</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TODO PAGE -->
+        <div id="todoPage" class="page todo-page">
+            <div class="todo-header">
+                <h1>🎯 Lista Attività</h1>
+                <p>Gestisci le tue attività vinicole</p>
+            </div>
+            
+            <div class="input-section">
+                <div class="input-group">
+                    <input type="text" class="task-input" id="taskInput" placeholder="Aggiungi una nuova attività..." maxlength="100">
+                    <button class="add-btn" onclick="addTask()">+ Aggiungi</button>
+                </div>
+            </div>
+            
+            <div class="tasks-section" id="tasksContainer">
+                <div class="empty-state" id="emptyState">
+                    <div style="font-size: 48px; margin-bottom: 20px;">📝</div>
+                    <h3>Nessuna attività</h3>
+                    <p>Aggiungi la tua prima attività per iniziare!</p>
+                </div>
+            </div>
+            
+            <div class="sync-section">
+                <h3>🔄 Sincronizzazione Dati</h3>
+                <div style="margin-bottom: 15px;">
+                    <button class="firebase-sync-btn" onclick="forceFirebaseSync()" id="firebaseSyncBtn">🔥 Sync Cloud</button>
+                    <button class="sync-btn" onclick="syncAllData()">🔄 Sync Locale</button>
+                </div>
+                <div>
+                    <button class="export-btn" onclick="exportAllData()">📤 Esporta</button>
+                    <button class="import-btn" onclick="document.getElementById('fileInput').click()">📥 Importa</button>
+                    <input type="file" id="fileInput" class="file-input" accept=".json" onchange="importAllData(event)">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- UNIVERSAL POPUP -->
+    <div class="popup-overlay" id="popupOverlay">
+        <div class="popup">
+            <h3 id="popupTitle">Popup</h3>
+            <div id="popupContent">
+                <div class="popup-content" id="reportContent" style="display:none;"></div>
+                <input type="time" id="timeInput" style="display:none;">
+                <input type="number" id="durationInput" placeholder="Minuti (1-999)" min="1" max="999" style="display:none;">
+            </div>
+            <div class="popup-buttons">
+                <button class="popup-btn cancel" id="popupCancel">Annulla</button>
+                <button class="popup-btn" id="popupConfirm">Conferma</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Enhanced PWA App Class - FIXED VERSION
+        class VinificatoriFirebasePWA {
+            constructor(username, isOfflineMode = false) {
+                // Core properties
+                this.currentPage = 'vinificatori';
+                this.currentVinificatorePage = 'home';
+                this.priorities = {};
+                this.activities = {};
+                this.tasks = [];
+                this.longPressTimer = null;
+                this.longPressDelay = 800;
+                this.saveTimer = null;
+                this.isLongPressing = false;
+                this.currentPopupType = null;
+                this.pendingAction = null;
+                
+                // Firebase properties
+                this.userId = this.sanitizeUsername(username);
+                this.firebaseReady = window.firebaseReady && !isOfflineMode;
+                this.syncInProgress = false;
+                this.lastSync = null;
+                this.realTimeListener = null;
+                this.firebaseSyncTimer = null;
+                this.isOfflineMode = isOfflineMode;
+                this.isDataLoaded = false;
+                
+                this.sectors = [
+                    { key: 'mattino', name: 'Mattino', emoji: '🌅' },
+                    { key: 'pomeriggio', name: 'Pomeriggio', emoji: '☀️' },
+                    { key: 'sera', name: 'Sera', emoji: '🌇' },
+                    { key: 'notte', name: 'Notte', emoji: '🌙' }
+                ];
+                
+                this.actions = ['Rimontaggio', 'Follatura', 'Campione', 'Aggiunta'];
+            }
+
+            sanitizeUsername(username) {
+                return username.trim().toLowerCase()
+                    .replace(/[^a-z0-9_-]/g, '_')
+                    .substring(0, 50) || 'user_default';
+            }
+
+            async init() {
+                this.loadAllData();
+                this.setupEventListeners();
+                this.updateHomeIndicators();
+                this.updateTodoUI();
+                this.startAutoSave();
+                this.updateUserDisplay();
+                
+                if (this.isOfflineMode) {
+                    this.showFirebaseStatus('warning');
+                    this.isDataLoaded = true;
+                } else if (this.firebaseReady) {
+                    await this.checkFirebaseStatus();
+                } else {
+                    this.showFirebaseStatus('error');
+                    this.isDataLoaded = true;
+                }
+                
+                this.updateSyncStatus();
+                return this.waitForDataLoad();
+            }
+
+            async waitForDataLoad() {
+                return new Promise(resolve => {
+                    const checkData = () => {
+                        if (this.isDataLoaded) {
+                            resolve();
+                        } else {
+                            setTimeout(checkData, 100);
+                        }
+                    };
+                    checkData();
+                });
+            }
+
+            async checkFirebaseStatus() {
+                if (this.firebaseReady && window.db) {
+                    this.showFirebaseStatus('success');
+                    await this.startFirebaseSync();
+                } else {
+                    this.showFirebaseStatus('error');
+                    this.isDataLoaded = true;
+                }
+            }
+
+            showFirebaseStatus(status) {
+                const statusEl = document.getElementById('firebaseStatus');
+                statusEl.classList.remove('show', 'error', 'warning');
+                
+                if (status === 'success') {
+                    statusEl.textContent = '🔥 Firebase connesso - Sincronizzazione attiva';
+                    statusEl.classList.add('show');
+                    setTimeout(() => statusEl.classList.remove('show'), 3000);
+                } else if (status === 'error') {
+                    statusEl.textContent = '⚠️ Firebase non disponibile - Modalità offline attiva';
+                    statusEl.classList.add('show', 'error');
+                    setTimeout(() => statusEl.classList.remove('show'), 5000);
+                } else if (status === 'warning') {
+                    statusEl.textContent = '📱 Modalità offline - Dati solo locali';
+                    statusEl.classList.add('show', 'warning');
+                    setTimeout(() => statusEl.classList.remove('show'), 4000);
+                }
+            }
+
+            updateUserDisplay() {
+                const display = document.getElementById('userIdDisplay');
+                const status = this.isOfflineMode ? 'offline' : (this.firebaseReady ? 'cloud' : 'offline');
+                display.textContent = `${this.userId} • ${status}`;
+            }
+
+            updateSyncStatus() {
+                const status = document.getElementById('syncStatus');
+                const tooltip = document.getElementById('syncTooltip');
+                
+                if (this.isOfflineMode) {
+                    status.className = 'sync-status';
+                    tooltip.textContent = 'Modalità offline - Dati solo su questo dispositivo';
+                } else if (!this.firebaseReady) {
+                    status.className = 'sync-status';
+                    tooltip.textContent = 'Firebase non disponibile - Solo modalità offline';
+                } else if (this.syncInProgress) {
+                    status.className = 'sync-status syncing';
+                    tooltip.textContent = 'Sincronizzazione cloud in corso...';
+                } else {
+                    status.className = 'sync-status firebase online';
+                    tooltip.textContent = this.lastSync ? 
+                        `Ultimo sync cloud: ${this.lastSync.toLocaleTimeString()}` : 
+                        'Sincronizzazione cloud attiva';
+                }
+            }
+
+            async startFirebaseSync() {
+                if (!this.firebaseReady || !window.db || this.isOfflineMode) {
+                    this.isDataLoaded = true;
+                    return;
+                }
+                
+                try {
+                    const docRef = window.db.collection('vinificatori_data').doc(this.userId);
+                    
+                    this.realTimeListener = docRef.onSnapshot((snapshot) => {
+                        if (snapshot.exists) {
+                            const cloudData = snapshot.data();
+                            console.log('Dati ricevuti da Firebase:', cloudData);
+                            this.mergeCloudData(cloudData);
+                            this.lastSync = new Date();
+                            this.updateSyncStatus();
+                        } else {
+                            console.log('Nessun documento cloud, creando...');
+                            this.pushToFirebase();
+                        }
+                        this.isDataLoaded = true;
+                    }, (error) => {
+                        console.error('Errore listener Firebase:', error);
+                        this.showFirebaseStatus('error');
+                        this.isDataLoaded = true;
+                    });
+                    
+                } catch (error) {
+                    console.error('Errore setup Firebase sync:', error);
+                    this.showFirebaseStatus('error');
+                    this.isDataLoaded = true;
+                }
+            }
+
+            mergeCloudData(cloudData) {
+                const localTimestamp = parseInt(localStorage.getItem('lastLocalUpdate') || '0');
+                const cloudTimestamp = cloudData.timestamp || 0;
+                
+                if (cloudTimestamp > localTimestamp) {
+                    console.log('Cloud data is newer, merging...');
+                    
+                    if (cloudData.priorities) this.priorities = cloudData.priorities;
+                    if (cloudData.activities) this.activities = cloudData.activities;
+                    if (cloudData.tasks) this.tasks = cloudData.tasks;
+                    
+                    this.updateHomeIndicators();
+                    this.updateTodoUI();
+                    if (this.currentVinificatorePage !== 'home') {
+                        this.updateVinificatorePage(this.currentVinificatorePage);
+                    }
+                    
+                    this.saveAllDataLocal();
+                    this.showNotification('Dati aggiornati dal cloud', 'success');
+                }
+            }
+
+            async pushToFirebase() {
+                if (!this.firebaseReady || !window.db || this.syncInProgress || this.isOfflineMode) return;
+                
+                this.syncInProgress = true;
+                this.updateSyncStatus();
+                
+                try {
+                    const docRef = window.db.collection('vinificatori_data').doc(this.userId);
+                    
+                    const dataToSync = {
+                        priorities: this.priorities,
+                        activities: this.activities,
+                        tasks: this.tasks,
+                        timestamp: Date.now(),
+                        lastDevice: navigator.userAgent.substr(0, 50),
+                        userId: this.userId,
+                        version: '2.5'
+                    };
+                    
+                    await docRef.set(dataToSync, { merge: true });
+                    
+                    localStorage.setItem('lastLocalUpdate', dataToSync.timestamp.toString());
+                    this.lastSync = new Date();
+                    console.log('Dati sincronizzati su Firebase');
+                    
+                } catch (error) {
+                    console.error('Errore push Firebase:', error);
+                    this.showNotification('Errore sincronizzazione cloud', 'error');
+                } finally {
+                    this.syncInProgress = false;
+                    this.updateSyncStatus();
+                }
+            }
+
+            loadAllData() {
+                try {
+                    const savedPriorities = localStorage.getItem('vinificatore_priorities');
+                    const savedActivities = localStorage.getItem('vinificatore_activities');
+                    const savedTasks = localStorage.getItem('todoTasks');
+                    
+                    this.priorities = savedPriorities ? JSON.parse(savedPriorities) : {};
+                    this.activities = savedActivities ? JSON.parse(savedActivities) : {};
+                    this.tasks = savedTasks ? JSON.parse(savedTasks) : [];
+                    
+                    this.migrateDataStructure();
+                } catch (e) {
+                    console.error('Error loading data:', e);
+                    this.priorities = {};
+                    this.activities = {};
+                    this.tasks = [];
+                }
+            }
+
+            migrateDataStructure() {
+                Object.keys(this.activities).forEach(vinificatore => {
+                    this.sectors.forEach(sector => {
+                        if (!this.activities[vinificatore][sector.key]) {
+                            this.activities[vinificatore][sector.key] = {};
+                        }
+                        if (!this.activities[vinificatore][sector.key].measurements) {
+                            this.activities[vinificatore][sector.key].measurements = {
+                                time: '', temperature: '', density: ''
+                            };
+                        }
+                    });
+                });
+            }
+
+            saveAllData() {
+                this.saveAllDataLocal();
+                
+                if (this.firebaseReady && !this.syncInProgress && !this.isOfflineMode) {
+                    this.debouncedFirebaseSync();
+                }
+            }
+
+            saveAllDataLocal() {
+                try {
+                    localStorage.setItem('vinificatore_priorities', JSON.stringify(this.priorities));
+                    localStorage.setItem('vinificatore_activities', JSON.stringify(this.activities));
+                    localStorage.setItem('todoTasks', JSON.stringify(this.tasks));
+                    localStorage.setItem('lastLocalUpdate', Date.now().toString());
+                } catch (e) {
+                    console.error('Error saving data locally:', e);
+                    this.showNotification('Errore salvataggio locale', 'error');
+                }
+            }
+
+            debouncedFirebaseSync() {
+                if (this.firebaseSyncTimer) {
+                    clearTimeout(this.firebaseSyncTimer);
+                }
+                
+                this.firebaseSyncTimer = setTimeout(() => {
+                    this.pushToFirebase();
+                }, 2000);
+            }
+
+            startAutoSave() {
+                setInterval(() => this.saveAllData(), 30000);
+                window.addEventListener('beforeunload', () => this.saveAllData());
+            }
+
+            showPage(pageId) {
+                document.querySelectorAll('.page').forEach(page => {
+                    page.classList.remove('active');
+                });
+                
+                document.querySelectorAll('.nav-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                
+                document.getElementById(pageId + 'Page').classList.add('active');
+                event.target.classList.add('active');
+                
+                this.currentPage = pageId;
+                
+                if (pageId === 'todo') {
+                    this.updateTodoUI();
+                } else if (pageId === 'vinificatori') {
+                    this.updateHomeIndicators();
+                }
+            }
+
+            setupEventListeners() {
+                const homeGrid = document.getElementById('homeGrid');
+                
+                // Long press per pulsanti vinificatore (home page)
+                homeGrid.addEventListener('touchstart', (e) => {
+                    const button = e.target.closest('.vinificatore-btn');
+                    if (!button || !button.dataset.vinificatore) return;
+                    
+                    e.preventDefault();
+                    this.startLongPress(button, 'priority');
+                }, { passive: false });
+
+                homeGrid.addEventListener('touchend', (e) => {
+                    const button = e.target.closest('.vinificatore-btn');
+                    if (!button || !button.dataset.vinificatore) return;
+                    
+                    e.preventDefault();
+                    
+                    if (this.isLongPressing) {
+                        this.cancelLongPress();
+                        return;
+                    }
+                    
+                    this.cancelLongPress();
+                    this.handleHomeButtonClick(button);
+                }, { passive: false });
+
+                homeGrid.addEventListener('touchcancel', () => this.cancelLongPress());
+
+                // Desktop mouse events
+                homeGrid.addEventListener('mousedown', (e) => {
+                    const button = e.target.closest('.vinificatore-btn');
+                    if (button?.dataset.vinificatore) {
+                        this.startLongPress(button, 'priority');
+                    }
+                });
+
+                homeGrid.addEventListener('mouseup', () => this.cancelLongPress());
+                homeGrid.addEventListener('mouseleave', () => this.cancelLongPress());
+
+                homeGrid.addEventListener('click', (e) => {
+                    const button = e.target.closest('.vinificatore-btn');
+                    if (button && !this.isLongPressing) {
+                        this.handleHomeButtonClick(button);
+                    }
+                });
+
+                // Todo events
+                document.getElementById('taskInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.addTask();
+                    }
+                });
+
+                // Popup events
+                document.getElementById('popupCancel').addEventListener('click', () => this.closePopup());
+                document.getElementById('popupConfirm').addEventListener('click', () => this.confirmPopup());
+                
+                document.getElementById('popupOverlay').addEventListener('click', (e) => {
+                    if (e.target === document.getElementById('popupOverlay')) {
+                        this.closePopup();
+                    }
+                });
+
+                document.getElementById('timeInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') this.confirmPopup();
+                });
+                
+                document.getElementById('durationInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') this.confirmPopup();
+                });
+            }
+
+            startLongPress(button, type) {
+                this.cancelLongPress();
+                this.isLongPressing = false;
+                
+                this.longPressTimer = setTimeout(() => {
+                    this.isLongPressing = true;
+                    
+                    if (navigator.vibrate) navigator.vibrate(50);
+                    
+                    button.classList.add('pulse');
+                    setTimeout(() => button.classList.remove('pulse'), 500);
+                    
+                    if (type === 'priority') {
+                        const vinificatore = button.dataset.vinificatore;
+                        if (vinificatore) {
+                            this.togglePriority(vinificatore);
+                        }
+                    } else if (type === 'duration') {
+                        const vinificatore = button.dataset.vinificatore;
+                        const sector = button.dataset.sector;
+                        const action = button.dataset.action;
+                        
+                        if (vinificatore && sector && action === 'Rimontaggio') {
+                            this.showDurationPopup(vinificatore, sector, action);
+                        }
+                    }
+                }, this.longPressDelay);
+            }
+
+            cancelLongPress() {
+                if (this.longPressTimer) {
+                    clearTimeout(this.longPressTimer);
+                    this.longPressTimer = null;
+                }
+                setTimeout(() => this.isLongPressing = false, 50);
+            }
+
+            togglePriority(vinificatore) {
+                if (this.priorities[vinificatore]) {
+                    delete this.priorities[vinificatore];
+                } else {
+                    const usedPriorities = Object.values(this.priorities);
+                    let nextPriority = 1;
+                    while (usedPriorities.includes(nextPriority) && nextPriority <= 10) {
+                        nextPriority++;
+                    }
+                    
+                    if (nextPriority <= 10) {
+                        this.priorities[vinificatore] = nextPriority;
+                    } else {
+                        this.showNotification('Massimo 10 priorità', 'warning');
+                        return;
+                    }
+                }
+                
+                this.debouncedSave();
+                this.updateHomeIndicators();
+            }
+
+            updateHomeIndicators() {
+                for (let i = 1; i <= 10; i++) {
+                    const button = document.querySelector(`[data-vinificatore="V${i.toString().padStart(2, '0')}"]`);
+                    if (button) {
+                        const vinificatore = `V${i.toString().padStart(2, '0')}`;
+                        
+                        button.classList.remove('has-activities', 'has-priority');
+                        const existingBadge = button.querySelector('.priority-badge');
+                        if (existingBadge) existingBadge.remove();
+                        
+                        if (this.priorities[vinificatore]) {
+                            button.classList.add('has-priority');
+                            const badge = document.createElement('span');
+                            badge.className = 'priority-badge';
+                            badge.textContent = this.priorities[vinificatore];
+                            button.appendChild(badge);
+                        }
+                        
+                        if (this.hasActivities(vinificatore)) {
+                            button.classList.add('has-activities');
+                        }
+                    }
+                }
+            }
+
+            hasActivities(vinificatore) {
+                if (!this.activities[vinificatore]) return false;
+                
+                for (const sector of this.sectors) {
+                    if (this.activities[vinificatore][sector.key]) {
+                        const sectorActions = this.activities[vinificatore][sector.key];
+                        if (Object.values(sectorActions).some(data => data && data.active)) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            handleHomeButtonClick(button) {
+                if (button.id === 'resetBtn') {
+                    this.resetAll();
+                } else if (button.id === 'shareBtn') {
+                    this.shareReport();
+                } else if (button.dataset.vinificatore) {
+                    this.openVinificatorePage(button.dataset.vinificatore);
+                }
+            }
+
+            openVinificatorePage(vinificatore) {
+                document.getElementById('homePage').style.display = 'none';
+                
+                let page = document.getElementById(`page-${vinificatore}`);
+                if (!page) {
+                    page = this.createVinificatorePage(vinificatore);
+                    document.getElementById('vinificatoriPage').appendChild(page);
+                }
+                
+                page.style.display = 'flex';
+                page.classList.add('active', 'fade-in');
+                
+                this.currentVinificatorePage = vinificatore;
+                this.updateVinificatorePage(vinificatore);
+            }
+
+            createVinificatorePage(vinificatore) {
+                const page = document.createElement('div');
+                page.id = `page-${vinificatore}`;
+                page.className = 'vinificatore-page';
+                
+                page.innerHTML = `
+                    <div class="vinificatore-header-row">
+                        <button class="back-btn" onclick="vinificatoriApp.goHome()">← Indietro</button>
+                        <div class="vinificatore-header">${vinificatore}</div>
+                        <div style="width: 100px;"></div>
+                    </div>
+                    <div class="sectors-container">
+                        ${this.sectors.map(sector => `
+                            <div class="sector" data-sector="${sector.key}">
+                                <div class="sector-header" onclick="vinificatoriApp.showTimePopup('${vinificatore}', '${sector.key}')">
+                                    <span class="sector-emoji">${sector.emoji}</span>
+                                    <span class="sector-name">${sector.name}</span>
+                                    <span class="sector-time-badge" data-time="${sector.key}"></span>
+                                </div>
+                                <div class="actions-row">
+                                    ${this.actions.map(action => `
+                                        <button class="action-btn" 
+                                                data-vinificatore="${vinificatore}"
+                                                data-sector="${sector.key}" 
+                                                data-action="${action}"
+                                                onclick="vinificatoriApp.toggleAction('${vinificatore}', '${sector.key}', '${action}', this)"
+                                                ${action === 'Rimontaggio' ? 'onmousedown="vinificatoriApp.startActionLongPress(event, this)" ontouchstart="vinificatoriApp.startActionLongPress(event, this)"' : ''}>
+                                            <span class="action-text">${action}</span>
+                                        </button>
+                                    `).join('')}
+                                </div>
+                                <div class="measurements-row">
+                                    <div class="measurement-input">
+                                        <div class="measurement-label">Temperatura (°C)</div>
+                                        <input type="number" class="measurement-field" 
+                                               placeholder="°C"
+                                               data-vinificatore="${vinificatore}"
+                                               data-sector="${sector.key}"
+                                               data-measurement="temperature"
+                                               min="0" max="50" step="0.1"
+                                               onchange="vinificatoriApp.saveMeasurement('${vinificatore}', '${sector.key}', 'temperature', this.value)">
+                                    </div>
+                                    <div class="measurement-input">
+                                        <div class="measurement-label">Densità (g/L)</div>
+                                        <input type="number" class="measurement-field" 
+                                               placeholder="g/L"
+                                               data-vinificatore="${vinificatore}"
+                                               data-sector="${sector.key}"
+                                               data-measurement="density"
+                                               min="0" max="2000" step="0.1"
+                                               onchange="vinificatoriApp.saveMeasurement('${vinificatore}', '${sector.key}', 'density', this.value)">
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                
+                return page;
+            }
+
+            // FIXED: Separate long press handler for action buttons
+            startActionLongPress(event, button) {
+                if (button.dataset.action === 'Rimontaggio') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.startLongPress(button, 'duration');
+                }
+            }
+
+            goHome() {
+                document.querySelectorAll('.vinificatore-page').forEach(page => {
+                    page.style.display = 'none';
+                    page.classList.remove('active');
+                });
+                
+                document.getElementById('homePage').style.display = 'block';
+                this.currentVinificatorePage = 'home';
+                this.updateHomeIndicators();
+            }
+
+            showTimePopup(vinificatore, sector) {
+                this.currentPopupType = 'time';
+                this.pendingAction = { vinificatore, sector };
+                
+                const measurements = this.getSectorMeasurements(vinificatore, sector);
+                const sectorName = this.sectors.find(s => s.key === sector)?.name || sector;
+                
+                this.showPopup(`Orario ${sectorName}`, measurements.time, 'time');
+            }
+
+            showDurationPopup(vinificatore, sector, action) {
+                this.currentPopupType = 'duration';
+                this.pendingAction = { vinificatore, sector, action };
+                
+                const actionData = this.getActionData(vinificatore, sector, action);
+                const currentDuration = actionData ? actionData.duration || '' : '';
+                
+                this.showPopup(`Durata ${action} (minuti)`, currentDuration, 'duration');
+            }
+
+            toggleAction(vinificatore, sector, action, buttonEl) {
+                if (!this.activities[vinificatore]) this.activities[vinificatore] = {};
+                if (!this.activities[vinificatore][sector]) this.activities[vinificatore][sector] = {};
+                
+                const currentData = this.activities[vinificatore][sector][action];
+                const isCurrentlyActive = currentData ? currentData.active : false;
+                
+                if (isCurrentlyActive) {
+                    delete this.activities[vinificatore][sector][action];
+                } else {
+                    this.activities[vinificatore][sector][action] = {
+                        active: true,
+                        priority: this.getNextActionPriority(vinificatore, sector),
+                        timestamp: new Date().toISOString(),
+                        duration: currentData ? currentData.duration : null
+                    };
+                }
+                
+                buttonEl.classList.add('pulse');
+                setTimeout(() => buttonEl.classList.remove('pulse'), 300);
+                
+                this.debouncedSave();
+                this.updateVinificatorePage(vinificatore);
+                this.updateHomeIndicators();
+            }
+
+            getNextActionPriority(vinificatore, sector) {
+                if (!this.activities[vinificatore] || !this.activities[vinificatore][sector]) {
+                    return 1;
+                }
+                
+                const sectorActions = this.activities[vinificatore][sector];
+                const usedPriorities = Object.entries(sectorActions)
+                    .filter(([action, data]) => action !== 'measurements' && data?.active && data.priority)
+                    .map(([action, data]) => data.priority);
+                
+                let nextPriority = 1;
+                while (usedPriorities.includes(nextPriority)) {
+                    nextPriority++;
+                }
+                
+                return nextPriority;
+            }
+
+            updateVinificatorePage(vinificatore) {
+                const page = document.getElementById(`page-${vinificatore}`);
+                if (!page) return;
+                
+                this.sectors.forEach(sector => {
+                    const sectorEl = page.querySelector(`[data-sector="${sector.key}"]`);
+                    if (!sectorEl) return;
+                    
+                    const actionButtons = sectorEl.querySelectorAll('.action-btn');
+                    const tempInput = sectorEl.querySelector(`[data-measurement="temperature"]`);
+                    const densityInput = sectorEl.querySelector(`[data-measurement="density"]`);
+                    const timeBadge = sectorEl.querySelector(`[data-time="${sector.key}"]`);
+                    
+                    // Update measurements
+                    const measurements = this.getSectorMeasurements(vinificatore, sector.key);
+                    if (tempInput) tempInput.value = measurements.temperature || '';
+                    if (densityInput) densityInput.value = measurements.density || '';
+                    
+                    if (timeBadge) {
+                        if (measurements.time) {
+                            timeBadge.textContent = measurements.time;
+                            timeBadge.classList.add('visible');
+                        } else {
+                            timeBadge.textContent = '';
+                            timeBadge.classList.remove('visible');
+                        }
+                    }
+                    
+                    // Update action buttons
+                    actionButtons.forEach(btn => {
+                        const action = btn.dataset.action;
+                        const isActive = this.isActionActive(vinificatore, sector.key, action);
+                        const actionData = this.getActionData(vinificatore, sector.key, action);
+                        
+                        btn.classList.toggle('active', isActive);
+                        
+                        // Remove existing badges
+                        const existingBadge = btn.querySelector('.action-badge');
+                        const existingDurationBadge = btn.querySelector('.duration-badge');
+                        if (existingBadge) existingBadge.remove();
+                        if (existingDurationBadge) existingDurationBadge.remove();
+                        
+                        // Add priority badge if active
+                        if (isActive && actionData?.priority) {
+                            const badge = document.createElement('span');
+                            badge.className = 'action-badge';
+                            badge.textContent = actionData.priority;
+                            btn.appendChild(badge);
+                        }
+                        
+                        // Add duration badge for Rimontaggio if has duration
+                        if (action === 'Rimontaggio' && actionData?.duration) {
+                            const durationBadge = document.createElement('span');
+                            durationBadge.className = 'duration-badge';
+                            durationBadge.textContent = `${actionData.duration}m`;
+                            btn.appendChild(durationBadge);
+                        }
+                    });
+                });
+            }
+
+            isActionActive(vinificatore, sector, action) {
+                const actionData = this.getActionData(vinificatore, sector, action);
+                return actionData ? actionData.active : false;
+            }
+
+            getActionData(vinificatore, sector, action) {
+                return this.activities[vinificatore]?.[sector]?.[action];
+            }
+
+            getSectorMeasurements(vinificatore, sector) {
+                if (!this.activities[vinificatore] || !this.activities[vinificatore][sector]) {
+                    return { time: '', temperature: '', density: '' };
+                }
+                return this.activities[vinificatore][sector].measurements || { time: '', temperature: '', density: '' };
+            }
+
+            saveMeasurement(vinificatore, sector, measurementType, value) {
+                if (!this.activities[vinificatore]) this.activities[vinificatore] = {};
+                if (!this.activities[vinificatore][sector]) this.activities[vinificatore][sector] = {};
+                if (!this.activities[vinificatore][sector].measurements) {
+                    this.activities[vinificatore][sector].measurements = {};
+                }
+                
+                this.activities[vinificatore][sector].measurements[measurementType] = value;
+                this.debouncedSave();
+            }
+
+            // Todo Methods
+            addTask() {
+                const input = document.getElementById('taskInput');
+                const text = input.value.trim();
+                
+                if (!text) return;
+                
+                const task = {
+                    id: Date.now().toString(),
+                    text: text,
+                    completed: false,
+                    createdAt: new Date().toISOString(),
+                    userId: this.userId,
+                    synced: false
+                };
+                
+                this.tasks.unshift(task);
+                input.value = '';
+                
+                this.saveAllData();
+                this.updateTodoUI();
+            }
+
+            toggleTask(id) {
+                const task = this.tasks.find(t => t.id === id);
+                if (task) {
+                    task.completed = !task.completed;
+                    task.synced = false;
+                    this.saveAllData();
+                    this.updateTodoUI();
+                }
+            }
+
+            deleteTask(id) {
+                this.tasks = this.tasks.filter(t => t.id !== id);
+                this.saveAllData();
+                this.updateTodoUI();
+            }
+
+            updateTodoUI() {
+                const container = document.getElementById('tasksContainer');
+                const emptyState = document.getElementById('emptyState');
+                
+                if (this.tasks.length === 0) {
+                    container.innerHTML = '';
+                    container.appendChild(emptyState);
+                } else {
+                    container.innerHTML = '';
+                    
+                    this.tasks.forEach(task => {
+                        const taskElement = this.createTaskElement(task);
+                        container.appendChild(taskElement);
+                    });
+                }
+            }
+
+            createTaskElement(task) {
+                const div = document.createElement('div');
+                div.className = `task-item ${task.completed ? 'completed' : ''}`;
+                
+                const createdAt = new Date(task.createdAt);
+                const timeStr = createdAt.toLocaleString('it-IT', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                div.innerHTML = `
+                    <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''} 
+                           onchange="vinificatoriApp.toggleTask('${task.id}')">
+                    <span class="task-text">${this.escapeHtml(task.text)}</span>
+                    <span class="task-time">${timeStr}</span>
+                    <button class="delete-btn" onclick="vinificatoriApp.deleteTask('${task.id}')">🗑️</button>
+                `;
+                
+                return div;
+            }
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            // Popup Methods
+            showPopup(title, value = '', type = 'report') {
+                const popup = document.getElementById('popupOverlay');
+                const titleEl = document.getElementById('popupTitle');
+                const reportContent = document.getElementById('reportContent');
+                const timeInput = document.getElementById('timeInput');
+                const durationInput = document.getElementById('durationInput');
+                const confirmBtn = document.getElementById('popupConfirm');
+                
+                titleEl.textContent = title;
+                
+                reportContent.style.display = 'none';
+                timeInput.style.display = 'none';
+                durationInput.style.display = 'none';
+                
+                if (type === 'report') {
+                    reportContent.style.display = 'block';
+                    reportContent.textContent = value;
+                    confirmBtn.textContent = 'Invia Email';
+                } else if (type === 'time') {
+                    timeInput.style.display = 'block';
+                    timeInput.value = value;
+                    confirmBtn.textContent = 'Conferma';
+                    setTimeout(() => timeInput.focus(), 100);
+                } else if (type === 'duration') {
+                    durationInput.style.display = 'block';
+                    durationInput.value = value;
+                    confirmBtn.textContent = 'Conferma';
+                    setTimeout(() => durationInput.focus(), 100);
+                }
+                
+                popup.classList.add('active');
+            }
+
+            closePopup() {
+                document.getElementById('popupOverlay').classList.remove('active');
+                this.currentPopupType = null;
+                this.pendingAction = null;
+            }
+
+            confirmPopup() {
+                if (this.currentPopupType === 'time') {
+                    this.confirmTime();
+                } else if (this.currentPopupType === 'duration') {
+                    this.confirmDuration();
+                } else if (this.currentPopupType === 'report') {
+                    this.confirmShare();
+                }
+            }
+
+            confirmTime() {
+                const timeValue = document.getElementById('timeInput').value;
+                
+                if (this.pendingAction) {
+                    const { vinificatore, sector } = this.pendingAction;
+                    this.saveMeasurement(vinificatore, sector, 'time', timeValue);
+                    this.updateVinificatorePage(vinificatore);
+                }
+                
+                this.closePopup();
+            }
+
+            confirmDuration() {
+                const durationValue = document.getElementById('durationInput').value;
+                
+                if (this.pendingAction && durationValue) {
+                    const { vinificatore, sector, action } = this.pendingAction;
+                    
+                    if (!this.activities[vinificatore]) this.activities[vinificatore] = {};
+                    if (!this.activities[vinificatore][sector]) this.activities[vinificatore][sector] = {};
+                    if (!this.activities[vinificatore][sector][action]) {
+                        this.activities[vinificatore][sector][action] = {
+                            active: false,
+                            priority: this.getNextActionPriority(vinificatore, sector),
+                            timestamp: new Date().toISOString()
+                        };
+                    }
+                    
+                    this.activities[vinificatore][sector][action].duration = parseInt(durationValue);
+                    
+                    this.debouncedSave();
+                    this.updateVinificatorePage(vinificatore);
+                }
+                
+                this.closePopup();
+            }
+
+            confirmShare() {
+                const report = document.getElementById('reportContent').textContent;
+                const subject = encodeURIComponent('Report Attività Vinificatori');
+                const body = encodeURIComponent(report);
+                const mailtoLink = `mailto:?subject=${subject}&body=${body}`;
+                
+                window.location.href = mailtoLink;
+                this.closePopup();
+            }
+
+            shareReport() {
+                const report = this.generateReport();
+                this.currentPopupType = 'report';
+                this.showPopup('Report Attività Vinificatori', report, 'report');
+            }
+
+            generateReport() {
+                const now = new Date();
+                const timestamp = now.toLocaleString('it-IT');
+                
+                let report = `REPORT ATTIVITÀ VINIFICATORI\n`;
+                report += `Data: ${timestamp}\n`;
+                report += `Utente: ${this.userId}\n`;
+                report += `Modalità: ${this.isOfflineMode ? 'Solo offline' : (this.firebaseReady ? 'Firebase attivo' : 'Solo locale')}\n`;
+                report += `${'='.repeat(50)}\n\n`;
+                
+                const priorityEntries = Object.entries(this.priorities).sort(([,a], [,b]) => a - b);
+                
+                if (priorityEntries.length > 0) {
+                    report += `PRIORITÀ VINIFICATORI:\n`;
+                    report += `${'-'.repeat(25)}\n`;
+                    priorityEntries.forEach(([vinificatore, priority]) => {
+                        report += `${priority}. ${vinificatore}\n`;
+                    });
+                    report += `\n`;
+                }
+                
+                const activeVinificatori = Object.keys(this.activities).filter(v => this.hasActivities(v));
+                
+                report += `RIEPILOGO:\n`;
+                report += `${'-'.repeat(15)}\n`;
+                report += `Vinificatori con priorità: ${priorityEntries.length}\n`;
+                report += `Vinificatori con attività: ${activeVinificatori.length}\n`;
+                report += `Totale todo: ${this.tasks.length} (${this.tasks.filter(t => t.completed).length} completate)\n\n`;
+                
+                if (activeVinificatori.length > 0) {
+                    report += `DETTAGLIO ATTIVITÀ:\n`;
+                    report += `${'-'.repeat(20)}\n`;
+                    
+                    activeVinificatori.sort().forEach(vinificatore => {
+                        const priorityText = this.priorities[vinificatore] 
+                            ? ` (Priorità ${this.priorities[vinificatore]})` 
+                            : '';
+                        report += `\n${vinificatore}${priorityText}:\n`;
+                        
+                        this.sectors.forEach(sector => {
+                            const sectorActivities = this.activities[vinificatore][sector.key];
+                            if (sectorActivities) {
+                                const activeActions = Object.entries(sectorActivities)
+                                    .filter(([action, data]) => action !== 'measurements' && data?.active)
+                                    .sort(([,a], [,b]) => (a.priority || 0) - (b.priority || 0));
+                                
+                                if (activeActions.length > 0) {
+                                    const actionsText = activeActions.map(([action, data]) => {
+                                        let actionStr = `${data.priority}. ${action}`;
+                                        if (action === 'Rimontaggio' && data.duration) {
+                                            actionStr += ` (${data.duration}m)`;
+                                        }
+                                        return actionStr;
+                                    }).join(', ');
+                                    report += `  ${sector.emoji} ${sector.name}: ${actionsText}\n`;
+                                }
+                            }
+                        });
+                    });
+                }
+                
+                report += `\n${'='.repeat(50)}\n`;
+                report += `Report Vinificatori PWA v2.5 Fixed`;
+                
+                return report;
+            }
+
+            resetAll() {
+                const confirmed = confirm('Sei sicuro di voler cancellare tutti i dati? Questa azione cancellerà anche i dati su Firebase (se attivo).');
+                
+                if (confirmed) {
+                    this.priorities = {};
+                    this.activities = {};
+                    this.tasks = [];
+                    
+                    this.saveAllData();
+                    this.updateHomeIndicators();
+                    this.updateTodoUI();
+                    
+                    if (this.currentVinificatorePage !== 'home') {
+                        this.updateVinificatorePage(this.currentVinificatorePage);
+                    }
+                    
+                    this.showNotification('Tutti i dati sono stati cancellati', 'success');
+                }
+            }
+
+            exportAllData() {
+                const data = {
+                    vinificatori: {
+                        priorities: this.priorities,
+                        activities: this.activities
+                    },
+                    tasks: this.tasks,
+                    userId: this.userId,
+                    isOfflineMode: this.isOfflineMode,
+                    exportedAt: new Date().toISOString(),
+                    version: '2.5'
+                };
+                
+                const blob = new Blob([JSON.stringify(data, null, 2)], {
+                    type: 'application/json'
+                });
+                
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `vinificatori-backup-${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                
+                URL.revokeObjectURL(url);
+                this.showNotification('Dati esportati con successo!', 'success');
+            }
+
+            importAllData(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        
+                        if (data.vinificatori && data.tasks) {
+                            if (data.vinificatori.priorities) {
+                                Object.assign(this.priorities, data.vinificatori.priorities);
+                            }
+                            
+                            if (data.vinificatori.activities) {
+                                Object.assign(this.activities, data.vinificatori.activities);
+                            }
+                            
+                            if (data.tasks && Array.isArray(data.tasks)) {
+                                this.tasks = [...this.tasks, ...data.tasks];
+                            }
+                            
+                            this.saveAllData();
+                            this.updateHomeIndicators();
+                            this.updateTodoUI();
+                            
+                            this.showNotification('Importazione completata e sincronizzata!', 'success');
+                        } else {
+                            this.showNotification('File non valido', 'error');
+                        }
+                    } catch (error) {
+                        this.showNotification('Errore durante importazione: ' + error.message, 'error');
+                    }
+                };
+                
+                reader.readAsText(file);
+                event.target.value = '';
+            }
+
+            syncAllData() {
+                this.saveAllData();
+                this.showNotification('Dati salvati e sincronizzati', 'success');
+            }
+
+            async forceFirebaseSync() {
+                if (!this.firebaseReady || this.isOfflineMode) {
+                    this.showNotification('Sincronizzazione Firebase non disponibile', 'warning');
+                    return;
+                }
+                
+                await this.pushToFirebase();
+                this.showNotification('Sincronizzazione Firebase completata', 'success');
+            }
+
+            debouncedSave() {
+                if (this.saveTimer) {
+                    clearTimeout(this.saveTimer);
+                }
+                
+                this.saveTimer = setTimeout(() => {
+                    this.saveAllData();
+                }, 500);
+            }
+
+            showNotification(message, type = 'info') {
+                const notification = document.createElement('div');
+                notification.style.cssText = `
+                    position: fixed;
+                    top: 25px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: ${type === 'error' ? '#dc3545' : type === 'warning' ? '#ffc107' : type === 'success' ? '#28a745' : '#722F37'};
+                    color: ${type === 'warning' ? '#212529' : 'white'};
+                    padding: 15px 25px;
+                    border-radius: 10px;
+                    box-shadow: 0 6px 15px rgba(0,0,0,0.3);
+                    z-index: 2000;
+                    font-size: 14px;
+                    font-weight: 600;
+                    max-width: 90%;
+                    text-align: center;
+                    animation: slideDown 0.3s ease;
+                `;
+                
+                notification.textContent = message;
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                    notification.style.animation = 'slideUp 0.3s ease';
+                    setTimeout(() => {
+                        if (notification.parentNode) {
+                            notification.parentNode.removeChild(notification);
+                        }
+                    }, 300);
+                }, 3000);
+            }
+        }
+
+        // Global functions for inline handlers
+        function showPage(pageId) {
+            if (vinificatoriApp) vinificatoriApp.showPage(pageId);
+        }
+
+        function addTask() {
+            if (vinificatoriApp) vinificatoriApp.addTask();
+        }
+
+        function syncAllData() {
+            if (vinificatoriApp) vinificatoriApp.syncAllData();
+        }
+
+        function forceFirebaseSync() {
+            if (vinificatoriApp) vinificatoriApp.forceFirebaseSync();
+        }
+
+        function exportAllData() {
+            if (vinificatoriApp) vinificatoriApp.exportAllData();
+        }
+
+        function importAllData(event) {
+            if (vinificatoriApp) vinificatoriApp.importAllData(event);
+        }
+
+        // Prevent context menu and text selection on interactive elements
+        document.addEventListener('contextmenu', (e) => {
+            if (e.target.closest('.vinificatore-btn') || e.target.closest('.action-btn') || e.target.closest('.nav-btn')) {
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('selectstart', (e) => {
+            if (e.target.closest('.vinificatore-btn') || e.target.closest('.action-btn') || e.target.closest('.nav-btn')) {
+                e.preventDefault();
+            }
+        });
+    </script>
+</body>
+</html>
