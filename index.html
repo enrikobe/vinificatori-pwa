@@ -1546,7 +1546,7 @@
                     });
                 }
                 
-                // Merge delle attività - unisci senza perdere dati
+                // Merge delle attività - FIXED: gestione esplicita delle deselezioni
                 if (cloudData.activities) {
                     Object.keys(cloudData.activities).forEach(vinificatore => {
                         if (!this.activities[vinificatore]) {
@@ -1557,7 +1557,7 @@
                                 if (!this.activities[vinificatore][sector]) {
                                     this.activities[vinificatore][sector] = cloudData.activities[vinificatore][sector];
                                 } else {
-                                    // Merge a livello di azione
+                                    // Merge a livello di azione con gestione stati
                                     const cloudSector = cloudData.activities[vinificatore][sector];
                                     const localSector = this.activities[vinificatore][sector];
                                     
@@ -1573,14 +1573,32 @@
                                                 density: localMeasurements.density || cloudMeasurements.density || ''
                                             };
                                         } else {
-                                            // Per le azioni, usa la più recente
+                                            // FIXED: Per le azioni, gestisci stati espliciti
                                             const cloudAction = cloudSector[action];
                                             const localAction = localSector[action];
                                             
-                                            if (cloudAction && (!localAction || 
-                                                new Date(cloudAction.timestamp) > new Date(localAction.timestamp || 0))) {
+                                            if (cloudAction && localAction) {
+                                                // Entrambi esistono, usa il più recente
+                                                const cloudTime = new Date(cloudAction.timestamp || 0);
+                                                const localTime = new Date(localAction.timestamp || 0);
+                                                
+                                                if (cloudTime > localTime) {
+                                                    this.activities[vinificatore][sector][action] = cloudAction;
+                                                }
+                                                // Se locale è più recente, mantieni quello locale
+                                            } else if (cloudAction && !localAction) {
+                                                // Solo cloud ha l'azione
                                                 this.activities[vinificatore][sector][action] = cloudAction;
                                             }
+                                            // Se solo locale ha l'azione, mantieni quella locale
+                                        }
+                                    });
+                                    
+                                    // FIXED: Gestisci azioni che esistono solo in locale
+                                    Object.keys(localSector).forEach(action => {
+                                        if (action !== 'measurements' && !cloudSector[action]) {
+                                            // L'azione esiste solo in locale, mantienila
+                                            // (già presente, non serve fare nulla)
                                         }
                                     });
                                 }
@@ -1688,12 +1706,23 @@
                 const isCurrentlyActive = currentData ? currentData.active : false;
                 
                 if (isCurrentlyActive) {
-                    delete this.activities[vinificatore][sector][action];
+                    // FIXED: Invece di cancellare l'entry, marca come disattivata
+                    this.activities[vinificatore][sector][action] = {
+                        active: false,
+                        deactivatedAt: new Date().toISOString(),
+                        timestamp: new Date().toISOString(),
+                        // Mantieni dati precedenti se esistono
+                        priority: currentData.priority || null,
+                        duration: currentData.duration || null,
+                        activatedAt: currentData.activatedAt || currentData.timestamp
+                    };
                 } else {
+                    // Attivazione
                     this.activities[vinificatore][sector][action] = {
                         active: true,
                         priority: this.getNextActionPriority(vinificatore, sector),
                         timestamp: new Date().toISOString(),
+                        activatedAt: new Date().toISOString(),
                         duration: currentData ? currentData.duration : null
                     };
                 }
